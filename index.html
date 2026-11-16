@@ -82,7 +82,7 @@
   @keyframes spin { to { transform:rotate(360deg); } }
 
   /* build intro */
-  #build { min-height:90vh; display:flex; align-items:center; padding:60px 0; }
+  #build { min-height:70vh; display:flex; align-items:center; padding:60px 0; }
   #build h2, #specs h2 { font-size:clamp(30px, 3.6vw, 44px); line-height:1.08; letter-spacing:-.025em; margin:12px 0 16px; font-weight:700; }
   #build p { color:var(--muted); font-size:17px; margin:0 0 20px; }
   .chapters { list-style:none; padding:0; margin:0; display:grid; grid-template-columns:1fr 1fr; gap:6px 18px; font-size:14px; }
@@ -90,7 +90,7 @@
   .chapters li span { font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--accent-ink); }
 
   /* step cards */
-  .step { height:100vh; height:100svh; display:flex; align-items:center; }
+  .step { height:50vh; height:50svh; display:flex; align-items:center; }  /* scroll distance per build step */
   .card { width:var(--col); margin-left:var(--gutter); background:var(--panel); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
           border:1px solid var(--line); border-radius:14px; padding:20px 24px 22px; box-shadow:0 8px 28px rgba(20,30,40,0.08);
           opacity:.38; transform:translateY(14px) scale(.985); transition:opacity .45s, transform .45s, box-shadow .45s; }
@@ -144,7 +144,8 @@
     .cue { bottom:26px; }
     #build { align-items:flex-end; padding-bottom:12vh; }
     #build .col { background:var(--panel); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); border:1px solid var(--line); border-radius:14px; padding:18px; }
-    .step { align-items:flex-end; padding-bottom:7vh; }
+    .step { height:50vh; height:50svh; }
+    .step:not(.active) .card { opacity:0; }
     .card { padding:16px 18px 18px; }
     .card h3 { font-size:19px; }
     .card p { font-size:15px; }
@@ -528,7 +529,12 @@ function measure() {
   heroH = hero.offsetHeight;
   switchY = heroH * 0.62;
   // A step is "in focus" when its section fills the viewport.
-  anchors = steps.map(el => el.getBoundingClientRect().top + scrollY + (el.offsetHeight - H) / 2);
+  // Desktop: card centred on screen. Phones: card bottom 7 % above the screen's bottom edge, under the model.
+  anchors = steps.map(el => {
+    const ch = el.querySelector('.card').offsetHeight;           // card is centred in its section
+    const top = el.getBoundingClientRect().top + scrollY + (el.offsetHeight - ch) / 2;
+    return W >= 900 ? top + ch / 2 - H / 2 : top + ch - H * .93;
+  });
 }
 const HOLD = 0.8; // finish each step's motion 80 % of the way to its card, then hold while it's read
 
@@ -733,7 +739,7 @@ if (!renderer) {
     updateUI(y, st);
 
     if (st.mode !== mode) { mode = st.mode; shownT = st.t; shownSpin = st.spin; }   // switch happens while the canvas is faded out
-    const k = reduceMotion ? 1 : 1 - Math.exp(-dt * 7);
+    const k = reduceMotion ? 1 : 1 - Math.exp(-dt * 9);
     shownT += (st.t - shownT) * k;
     shownSpin += (st.spin - shownSpin) * k;
     if (Math.abs(st.t - shownT) < 1e-3) shownT = st.t;
