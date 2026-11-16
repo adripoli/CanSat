@@ -593,9 +593,10 @@ function softSnap(now) {
   lastScrollAt = Infinity;         // check once per pause
   const y = scrollY;
   let best = null;
-  for (const p of snapPoints) if (best === null || Math.abs(p - y) < Math.abs(best - y)) best = p;
+  for (const p of snapPoints) if (p > y + 2 && (best === null || p < best)) best = p;   // only ever snap forwards (down)
+  if (best === null) return;
   const d = best - y;
-  if (Math.abs(d) > 2 && Math.abs(d) < H * SNAP_RANGE) settle = { from: y, to: best, start: now, dur: 260 + Math.abs(d) * 1.2 };
+  if (d < H * SNAP_RANGE) settle = { from: y, to: best, start: now, dur: 260 + Math.abs(d) * 1.2 };
 }
 
 /* ---------- UI state that follows the scroll (works without WebGL too) ---------- */
@@ -905,7 +906,12 @@ if (!renderer) {
   // Idle turn: resting on a build step (not scrolling, not snapping), the can keeps turning slowly.
   // It eases in and out, and unwinds once scrolling resumes so each step's scripted view still lines up.
   const IDLE_SPEED = 5, IDLE_DELAY = 250;   // deg/s, ms of stillness before it starts
-  let idleAz = 0, idleVel = 0, idleW = 0;
+  let idleAz = 0, idleVel = 0, idleW = 0, idleDir = 1;
+  // Which way the scripted camera was turning as the build played forward into time t (+1 / -1).
+  function azDir(t) {
+    for (let b = .3; b <= 8; b += .3) { const d = camAt(t).az - camAt(t - b).az; if (Math.abs(d) > .5) return Math.sign(d); }
+    return 1;
+  }
   let ready = false, mode = '', shownT = END, shownSpin = 0, heroClock = 0, lastNow = performance.now();
   let drawn = { t: NaN, spin: NaN, clock: NaN, opacity: NaN, idle: NaN };
 
@@ -948,10 +954,11 @@ if (!renderer) {
 
     const idle = ready && mode === 'build' && !orbitOn && !reduceMotion && !touching && !settle && !drag
       && now - lastMoveAt > IDLE_DELAY && st.opacity > 0;
+    if (idle && !idleW && Math.abs(idleVel) < .5) idleDir = azDir(shownT);   // pick the direction from a standstill only
     if (!idle && idleW) idleAz = ((idleAz % 360) + 540) % 360 - 180;   // unwind the short way round
     idleW = idle ? 1 : 0;
     // Ease the turn rate toward its target: a slow steady turn while idle, otherwise a capped glide back to the script.
-    const want = idle ? IDLE_SPEED : clamp(-idleAz * 1.5, -60, 60);
+    const want = idle ? IDLE_SPEED * idleDir : clamp(-idleAz * 1.5, -60, 60);
     idleVel += (want - idleVel) * (reduceMotion ? 1 : 1 - Math.exp(-dt * (idle ? 1.2 : 3)));
     idleAz += idleVel * dt;
     if (!idle && Math.abs(idleAz) < .02 && Math.abs(idleVel) < .05) idleAz = idleVel = 0;
