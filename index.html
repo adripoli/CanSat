@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CanSat v6</title>
-<meta name="description" content="CanSat v6: a satellite the size of a soft-drink can. Scroll to watch all 36 parts go together, one step at a time.">
+<title>RunnySat</title>
+<meta name="description" content="RunnySat: a satellite the size of a soft-drink can. Scroll to watch all 36 parts go together, one step at a time.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -27,6 +27,14 @@
   /* ---------- 3D stage ---------- */
   #stage { position:fixed; inset:0; z-index:0; }
   #stage canvas { display:block; width:100%; height:100%; }
+  body.orbit .step.final, body.orbit #specs { cursor:grab; touch-action:pan-y; user-select:none; -webkit-user-select:none; }
+  body.orbit .step.final .card, body.orbit #specs .panel { cursor:auto; user-select:text; -webkit-user-select:text; }
+  body.grabbing, body.grabbing * { cursor:grabbing !important; }
+  #orbitHint { position:fixed; z-index:4; bottom:26px; left:calc(var(--gutter) + var(--col) + (100vw - var(--gutter) - var(--col) - 120px) / 2);
+               transform:translate(-50%, 8px); opacity:0; pointer-events:none; transition:opacity .35s, transform .35s;
+               font-size:12.5px; color:var(--ink); background:var(--panel); border:1px solid var(--line); border-radius:999px; padding:6px 13px;
+               backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); box-shadow:0 4px 16px rgba(20,30,40,.08); white-space:nowrap; }
+  body.orbit #orbitHint { opacity:1; transform:translate(-50%, 0); }
   #fallback { position:fixed; inset:0; display:none; align-items:center; justify-content:center; color:var(--muted); font-size:15px; padding:24px; text-align:center; }
 
   /* ---------- top bar ---------- */
@@ -133,6 +141,7 @@
 
   /* ---------- small screens: model on top, text below ---------- */
   @media (max-width: 899px) {
+    #orbitHint { left:50%; bottom:auto; top:74px; }
     :root { --col:auto; --gutter:16px; }
     .nav { padding:0 16px; gap:16px; }
     .nav .links { gap:16px; }
@@ -168,7 +177,7 @@
 <div id="fallback">The 3D model needs WebGL, which isn't available in this browser. The build steps below still explain every part.</div>
 
 <header class="nav" id="nav">
-  <a class="brand" href="#top"><i></i>CanSat v6</a>
+  <a class="brand" href="#top"><i></i>RunnySat</a>
   <nav class="links" aria-label="Sections">
     <a href="#build" class="hide-sm">The build</a>
     <a href="#specs">Specs</a>
@@ -176,6 +185,7 @@
   </nav>
 </header>
 <div id="progress"></div>
+<div id="orbitHint">⟲ Drag to rotate</div>
 
 <ol id="rail" aria-label="Build chapters"></ol>
 
@@ -184,7 +194,7 @@
     <div class="col">
       <div class="panel-sm">
         <div class="eyebrow">CanSat · construction sequence</div>
-        <h1>CanSat v6</h1>
+        <h1>RunnySat</h1>
         <p class="lead">A satellite the size of a soft-drink can. <strong>Three ground-facing sensors, two computers, GPS and a LoRa downlink</strong>, packed into a printed shell. Scroll down and watch it go together, part by part.</p>
         <div class="btns">
           <a class="btn primary" href="#build">See how it's built ↓</a>
@@ -258,7 +268,7 @@
     <section class="step" data-t="16.8" data-ch="2"><div class="card">
       <div class="meta"><span class="ch">02 · Sled</span><span class="n"></span></div>
       <h3>The sled</h3>
-      <p>The backbone of the electronics. The Raspberry Pi mounts on one side and the battery on the other, and both PCBs slide down into it later. We build it lying on its side.</p>
+      <p>The backbone of the electronics. The Raspberry Pi mounts on one side and the battery on the other, and both PCBs slide down into it later.</p>
       <div class="tags"><span>3D printed</span></div>
     </div></section>
 
@@ -360,7 +370,7 @@
     <section class="step final" data-t="63" data-ch="6"><div class="card">
       <div class="meta"><span class="ch">Assembled</span><span class="n"></span></div>
       <h3>Ready to fly</h3>
-      <p>Thirty-six parts in a Ø66 × 114.5 mm can, with every sensor looking down and both antennas looking up.</p>
+      <p>Thirty-six parts in a Ø66 × 114.5 mm can, with every sensor looking down and both antennas looking up. Drag the model to look around it.</p>
     </div></section>
   </div>
 
@@ -400,7 +410,7 @@
   </div>
 </section>
 <footer>
-  <span>CanSat v6 · construction model · dimensions in mm</span>
+  <span>RunnySat · construction model · dimensions in mm</span>
   <a href="#top">Back to top ↑</a>
 </footer>
 
@@ -491,7 +501,10 @@ const shellFade = t => t < 47.8 ? 1 : t < 62 ? 1 - .8 * easeInOut(ramp(t, 47.8, 
 const CAM = [
   [0, [45, 0, 60], 480, -55, 24], [2.6, [0, 0, 12], 200, -40, 52], [16, [0, 0, 12], 200, 25, 48],
   [17.6, [90, 0, 62], 300, 40, 22], [25.6, [90, 0, 70], 320, 66, 20], [26.6, [90, 0, 100], 410, 70, 18],
-  [33.8, [90, 0, 100], 410, 100, 18], [35, [90, 0, 125], 280, 65, 24], [40.4, [90, 0, 112], 280, 125, 22],
+  [30.2, [90, 0, 100], 410, 82, 18],
+  // PCB A's parts sit on its -y face: swing round to face them while they land, then stay on that side.
+  [31.3, [90, 0, 112], 330, -95, 20], [32.6, [90, 0, 112], 330, -110, 20], [34, [90, 0, 100], 400, -100, 18],
+  [35, [90, 0, 125], 280, -65, 24], [40.4, [90, 0, 112], 280, -125, 22],
   [42.4, [45, 0, 112], 540, 250, 14], [48.4, [45, 0, 128], 570, 262, 16], [52.6, [20, 0, 125], 560, 252, 16],
   [56.2, [0, 0, 95], 450, 240, 18], [62, [0, 0, 92], 430, 265, 14], [70, [0, 0, 70], 380, 345, 18],
 ];
@@ -723,6 +736,30 @@ if (!renderer) {
 
   /* ---------- frame loop ---------- */
   const PLAY_RATE = 2.2, MAX_PLAY = 1.4;
+
+  /* ---------- rotate-only orbit once the can is finished (no pan, no zoom: the wheel still scrolls) ---------- */
+  let orbitOn = false, userAz = 0, userEl = 0, velAz = 0, drag = null;
+  const BASE_EL = camAt(END).el;
+  addEventListener('pointerdown', e => {
+    if (!orbitOn || e.button !== 0 || e.target.closest('.card, .panel, a, button, .nav, #explore, footer')) return;
+    if (e.pointerType === 'mouse') e.preventDefault();          // no text selection while dragging
+    drag = { id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now(), mouse: e.pointerType === 'mouse' };
+    velAz = 0;
+    document.body.classList.add('grabbing');
+  });
+  addEventListener('pointermove', e => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const now = performance.now(), dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    const dAz = -dx * .4;
+    userAz += dAz;
+    if (drag.mouse) userEl = clamp(userEl + dy * .3, 3 - BASE_EL, 75 - BASE_EL);   // touch: vertical drags scroll the page
+    velAz = .7 * velAz + .3 * dAz / Math.max(.008, (now - drag.t) / 1000);
+    Object.assign(drag, { x: e.clientX, y: e.clientY, t: now });
+    dirty = true;
+  });
+  const endDrag = e => { if (drag && e.pointerId === drag.id) { drag = null; document.body.classList.remove('grabbing'); } };
+  addEventListener('pointerup', endDrag);
+  addEventListener('pointercancel', endDrag);
   let ready = false, mode = '', shownT = END, shownSpin = 0, heroClock = 0, lastNow = performance.now();
   let drawn = { t: NaN, spin: NaN, clock: NaN, opacity: NaN };
 
@@ -742,6 +779,21 @@ if (!renderer) {
     if (Math.abs(st.spin - shownSpin) < 1e-3) shownSpin = st.spin;
     if (mode === 'hero' && !reduceMotion && st.opacity > 0) heroClock += dt;
 
+    // Orbit is available from the last card on; leaving that zone eases the view back to the scripted camera.
+    const canOrbit = ready && mode === 'build' && y >= anchors[anchors.length - 1] - H * .5;
+    if (canOrbit !== orbitOn) {
+      orbitOn = canOrbit;
+      document.body.classList.toggle('orbit', orbitOn);
+      if (!orbitOn) { drag = null; velAz = 0; document.body.classList.remove('grabbing'); userAz = ((userAz % 360) + 540) % 360 - 180; }
+    }
+    if (orbitOn && !drag && Math.abs(velAz) > .5) { userAz += velAz * dt; velAz *= Math.exp(-dt * 4); dirty = true; }
+    if (!orbitOn && (userAz || userEl)) {
+      const r = reduceMotion ? 0 : Math.exp(-dt * 5);
+      userAz *= r; userEl *= r;
+      if (Math.abs(userAz) < .05 && Math.abs(userEl) < .05) userAz = userEl = 0;
+      dirty = true;
+    }
+
     if (st.opacity !== drawn.opacity) renderer.domElement.style.opacity = st.opacity;
     const changed = dirty || shownT !== drawn.t || shownSpin !== drawn.spin || heroClock !== drawn.clock;
     if (ready && st.opacity > 0 && changed) {
@@ -750,7 +802,7 @@ if (!renderer) {
         if (W >= 900) placeCamera([0, 0, 60], 350, 330 + heroClock * 7, 16);
         else placeCamera([0, 0, 0], 520, 330 + heroClock * 7, 12);
       }
-      else { const c = camAt(shownT); placeCamera(c.target, c.dist, c.az + shownSpin, c.el); }
+      else { const c = camAt(shownT); placeCamera(c.target, c.dist, c.az + shownSpin + userAz, c.el + userEl); }
       renderer.render(scene, camera);
       drawn = { t: shownT, spin: shownSpin, clock: heroClock, opacity: st.opacity };
       dirty = false;
