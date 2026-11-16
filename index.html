@@ -573,7 +573,8 @@ const SNAP_RANGE = 0.17;   // fraction of the screen height
 const root = document.documentElement;
 let snapPoints = [], lastScrollAt = 0, touching = false, settle = null;
 const cancelSettle = () => { settle = null; };
-addEventListener('scroll', () => { if (!settle) lastScrollAt = performance.now(); }, { passive: true });
+let lastMoveAt = 0;               // last time the page moved at all (user or snap), for the idle turn
+addEventListener('scroll', () => { lastMoveAt = performance.now(); if (!settle) lastScrollAt = lastMoveAt; }, { passive: true });
 addEventListener('wheel', cancelSettle, { passive: true });
 addEventListener('keydown', cancelSettle);
 addEventListener('touchstart', () => { touching = true; cancelSettle(); }, { passive: true });
@@ -901,8 +902,12 @@ if (!renderer) {
   addEventListener('pointerup', endDrag);
   addEventListener('pointercancel', endDrag);
   const HERO_AZ = 330;
+  // Idle turn: resting on a build step (not scrolling, not snapping), the can keeps turning slowly.
+  // It eases in and out, and unwinds once scrolling resumes so each step's scripted view still lines up.
+  const IDLE_SPEED = 5, IDLE_DELAY = 250;   // deg/s, ms of stillness before it starts
+  let idleAz = 0, idleVel = 0, idleW = 0;
   let ready = false, mode = '', shownT = END, shownSpin = 0, heroClock = 0, lastNow = performance.now();
-  let drawn = { t: NaN, spin: NaN, clock: NaN, opacity: NaN };
+  let drawn = { t: NaN, spin: NaN, clock: NaN, opacity: NaN, idle: NaN };
 
   function frame(now) {
     const dt = Math.min(.1, (now - lastNow) / 1000);
@@ -941,8 +946,18 @@ if (!renderer) {
       dirty = true;
     }
 
+    const idle = ready && mode === 'build' && !orbitOn && !reduceMotion && !touching && !settle && !drag
+      && now - lastMoveAt > IDLE_DELAY && st.opacity > 0;
+    if (!idle && idleW) idleAz = ((idleAz % 360) + 540) % 360 - 180;   // unwind the short way round
+    idleW = idle ? 1 : 0;
+    // Ease the turn rate toward its target: a slow steady turn while idle, otherwise a capped glide back to the script.
+    const want = idle ? IDLE_SPEED : clamp(-idleAz * 1.5, -60, 60);
+    idleVel += (want - idleVel) * (reduceMotion ? 1 : 1 - Math.exp(-dt * (idle ? 1.2 : 3)));
+    idleAz += idleVel * dt;
+    if (!idle && Math.abs(idleAz) < .02 && Math.abs(idleVel) < .05) idleAz = idleVel = 0;
+
     if (st.opacity !== drawn.opacity) renderer.domElement.style.opacity = st.opacity;
-    const changed = dirty || shownT !== drawn.t || shownSpin !== drawn.spin || heroClock !== drawn.clock;
+    const changed = dirty || shownT !== drawn.t || shownSpin !== drawn.spin || heroClock !== drawn.clock || idleAz !== drawn.idle;
     if (ready && st.opacity > 0 && changed) {
       poseParts(shownT);
       if (mode === 'hero') {          // on phones, aim low so the can sits above the hero text
@@ -955,9 +970,9 @@ if (!renderer) {
         }
         else placeCamera([0, 0, tz], dist, HERO_AZ + heroClock * 7, el);
       }
-      else { const c = camAt(shownT); placeCamera(c.target, c.dist, c.az + shownSpin + userAz, c.el + userEl); }
+      else { const c = camAt(shownT); placeCamera(c.target, c.dist, c.az + shownSpin + userAz + idleAz, c.el + userEl); }
       renderer.render(scene, camera);
-      drawn = { t: shownT, spin: shownSpin, clock: heroClock, opacity: st.opacity };
+      drawn = { t: shownT, spin: shownSpin, clock: heroClock, opacity: st.opacity, idle: idleAz };
       dirty = false;
     }
     drawn.opacity = st.opacity;
