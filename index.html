@@ -14,10 +14,7 @@
     --panel:rgba(255,255,255,0.86); --col:min(440px, 38vw); --gutter:48px;
   }
   * { box-sizing:border-box; }
-  html { scroll-behavior:smooth; scroll-snap-type:y mandatory; }
-  #hero, #build, #specs { scroll-snap-align:start; }
-  .step { scroll-snap-align:start; scroll-snap-stop:always; }  /* one step per scroll gesture */
-  footer { scroll-snap-align:end; }
+  html { scroll-behavior:smooth; }
   @media (prefers-reduced-motion: reduce) { html { scroll-behavior:auto; } }
   body { margin:0; background:var(--bg); color:var(--ink); font-family:Inter,system-ui,sans-serif; font-size:16px; line-height:1.55;
          -webkit-font-smoothing:antialiased; }
@@ -101,10 +98,11 @@
   .chapters li span { font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--accent-ink); }
 
   /* step cards */
-  .step { height:100vh; height:100svh; display:flex; align-items:center; }
+  .step { height:60vh; height:60svh; display:flex; align-items:center; }  /* scroll distance per build step */
   .card { width:var(--col); margin-left:var(--gutter); background:var(--panel); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
           border:1px solid var(--line); border-radius:14px; padding:20px 24px 22px; box-shadow:0 8px 28px rgba(20,30,40,0.08);
           opacity:0; transform:translateY(40px); transition:opacity .3s, transform .3s; }
+  .step:not(.active) .card { pointer-events:none; }
   .step.active .card { opacity:1; transform:none; transition:opacity .45s .12s, transform .55s .12s cubic-bezier(.2,.8,.2,1); }
   .card .meta { display:flex; justify-content:space-between; align-items:baseline; gap:12px; margin-bottom:8px; }
   .card .ch { font-size:12px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--accent-ink); }
@@ -156,8 +154,7 @@
     .cue { bottom:26px; }
     #build { align-items:flex-end; padding-bottom:12vh; }
     #build .col { background:var(--panel); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); border:1px solid var(--line); border-radius:14px; padding:18px; }
-    .step { align-items:flex-end; padding-bottom:7vh; }
-    .card { padding:16px 18px 18px; }
+    .card { padding:16px 18px 18px; position:fixed; left:0; right:0; bottom:7vh; z-index:2; }  /* phones: cards stay put under the model and crossfade */
     .card h3 { font-size:19px; }
     .card p { font-size:15px; }
     .tags { margin-top:10px; }
@@ -543,24 +540,61 @@ let W = innerWidth, H = innerHeight, anchors = [], heroH = H, switchY = 0;
 function measure() {
   heroH = hero.offsetHeight;
   switchY = heroH * 0.62;
-  anchors = steps.map(el => el.getBoundingClientRect().top + scrollY);   // each step's snap position
+  // The scroll position where each step is "in focus": its section centred on screen
+  // (on desktop that centres the card; on phones the cards are pinned under the model).
+  anchors = steps.map(el => el.getBoundingClientRect().top + scrollY + el.offsetHeight / 2 - H / 2);
+  const top = sel => document.querySelector(sel).getBoundingClientRect().top + scrollY;
+  snapPoints = [0, top('#build'), ...anchors, top('#specs')];
 }
+const HOLD = 0.8;   // a step's motion finishes 80 % of the way to its card, then holds while it's read
 
-// The page snaps one step per scroll gesture; the step in view sets where the animation should be,
-// and the frame loop plays it there on its own (see PLAY_RATE / MAX_PLAY).
+// Scroll position drives the animation directly; the frame loop smooths it.
 function sceneAt(y) {
   if (y < switchY) {               // hero: the finished can, slowly turning
     return { mode: 'hero', t: END, opacity: 1 - ramp(y, heroH * 0.3, switchY - heroH * 0.3), spin: 0, active: -1 };
   }
   const opacity = ramp(y, switchY, heroH * 0.3);
-  const last = anchors.length - 1;
-  if (y < anchors[0] - H * .5) return { mode: 'build', t: 2.2, opacity, spin: 0, active: -1 };
-  if (y > anchors[last] + H * .5) {  // past the last card: turn the finished can as you scroll
-    return { mode: 'build', t: END, opacity, spin: (y - anchors[last]) / H * 50, active: -1 };
+  const last = anchors.length - 1, gap = anchors[1] - anchors[0];
+  if (y < anchors[0]) {
+    const f = ramp(y, switchY, anchors[0] - switchY);
+    return { mode: 'build', t: 2.2 + (stepEnd[0] - 2.2) * clamp(f / HOLD), opacity, spin: 0, active: y > anchors[0] - gap / 2 ? 0 : -1 };
+  }
+  if (y >= anchors[last]) {        // past the last card: turn the finished can as you scroll
+    return { mode: 'build', t: END, opacity, spin: (y - anchors[last]) / H * 50, active: y - anchors[last] < gap / 2 ? last : -1 };
   }
   let i = 0;
-  while (i < last && Math.abs(anchors[i + 1] - y) < Math.abs(anchors[i] - y)) i++;
-  return { mode: 'build', t: stepEnd[i], opacity, spin: 0, active: i };
+  while (i < last - 1 && y >= anchors[i + 1]) i++;
+  const f = (y - anchors[i]) / (anchors[i + 1] - anchors[i]);
+  return { mode: 'build', t: stepEnd[i] + (stepEnd[i + 1] - stepEnd[i]) * clamp(f / HOLD), opacity, spin: 0, active: f < .5 ? i : i + 1 };
+}
+
+/* ---------- soft snap: if you stop scrolling close to a step, ease the last bit onto it ---------- */
+const SNAP_RANGE = 0.17;   // fraction of the screen height
+const root = document.documentElement;
+let snapPoints = [], lastScrollAt = 0, touching = false, settle = null;
+const cancelSettle = () => { settle = null; };
+addEventListener('scroll', () => { if (!settle) lastScrollAt = performance.now(); }, { passive: true });
+addEventListener('wheel', cancelSettle, { passive: true });
+addEventListener('keydown', cancelSettle);
+addEventListener('touchstart', () => { touching = true; cancelSettle(); }, { passive: true });
+addEventListener('touchend', () => { touching = false; lastScrollAt = performance.now(); }, { passive: true });
+addEventListener('pointerdown', cancelSettle);
+function softSnap(now) {
+  if (settle) {                    // easing onto a step
+    const f = clamp((now - settle.start) / settle.dur), e = 1 - Math.pow(1 - f, 3);
+    root.style.scrollBehavior = 'auto';          // step the scroll ourselves, frame by frame
+    scrollTo(0, settle.from + (settle.to - settle.from) * e);
+    root.style.scrollBehavior = '';
+    if (f >= 1) { settle = null; lastScrollAt = Infinity; }
+    return;
+  }
+  if (touching || reduceMotion || now - lastScrollAt < 170) return;
+  lastScrollAt = Infinity;         // check once per pause
+  const y = scrollY;
+  let best = null;
+  for (const p of snapPoints) if (best === null || Math.abs(p - y) < Math.abs(best - y)) best = p;
+  const d = best - y;
+  if (Math.abs(d) > 2 && Math.abs(d) < H * SNAP_RANGE) settle = { from: y, to: best, start: now, dur: 260 + Math.abs(d) * 1.2 };
 }
 
 /* ---------- UI state that follows the scroll (works without WebGL too) ---------- */
@@ -595,7 +629,7 @@ if (!renderer) {
   document.getElementById('fallback').style.display = 'flex';
   loading.classList.add('done');
   measure();
-  const tick = () => { updateUI(scrollY, sceneAt(scrollY)); requestAnimationFrame(tick); };
+  const tick = now => { softSnap(now); updateUI(scrollY, sceneAt(scrollY)); requestAnimationFrame(tick); };
   addEventListener('resize', () => { W = innerWidth; H = innerHeight; measure(); });
   tick();
 } else {
@@ -735,7 +769,7 @@ if (!renderer) {
   }
 
   /* ---------- frame loop ---------- */
-  const PLAY_RATE = 2.2, MAX_PLAY = 1.4;
+  const MIN_RATE = 1.5;
 
   /* ---------- rotate-only orbit once the can is finished (no pan, no zoom: the wheel still scrolls) ---------- */
   let orbitOn = false, userAz = 0, userEl = 0, velAz = 0, drag = null;
@@ -766,21 +800,22 @@ if (!renderer) {
   function frame(now) {
     const dt = Math.min(.1, (now - lastNow) / 1000);
     lastNow = now;
+    softSnap(now);
     const y = scrollY, st = sceneAt(y);
     updateUI(y, st);
 
     if (st.mode !== mode) { mode = st.mode; shownT = st.t; shownSpin = st.spin; }   // switch happens while the canvas is faded out
-    const k = reduceMotion ? 1 : 1 - Math.exp(-dt * 9);
-    // Play toward the step in view: at least PLAY_RATE× real time, and never longer than MAX_PLAY seconds.
-    const gap = st.t - shownT, rate = reduceMotion ? Infinity : Math.max(PLAY_RATE, Math.abs(gap) / MAX_PLAY);
-    shownT += Math.sign(gap) * Math.min(Math.abs(gap), rate * dt);
+    const k = reduceMotion ? 1 : 1 - Math.exp(-dt * 6);
+    // Follow the scroll smoothly: ease toward it, but never slower than MIN_RATE× real time so the tail finishes.
+    const gap = st.t - shownT;
+    shownT += reduceMotion ? gap : Math.sign(gap) * Math.min(Math.abs(gap), Math.max(Math.abs(gap) * k, MIN_RATE * dt));
     shownSpin += (st.spin - shownSpin) * k;
     if (Math.abs(st.t - shownT) < 1e-3) shownT = st.t;
     if (Math.abs(st.spin - shownSpin) < 1e-3) shownSpin = st.spin;
     if (mode === 'hero' && !reduceMotion && st.opacity > 0) heroClock += dt;
 
     // Orbit is available from the last card on; leaving that zone eases the view back to the scripted camera.
-    const canOrbit = ready && mode === 'build' && y >= anchors[anchors.length - 1] - H * .5;
+    const canOrbit = ready && mode === 'build' && y >= (anchors[anchors.length - 1] + anchors[anchors.length - 2]) / 2;
     if (canOrbit !== orbitOn) {
       orbitOn = canOrbit;
       document.body.classList.toggle('orbit', orbitOn);
