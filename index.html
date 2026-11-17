@@ -556,28 +556,41 @@ function measure() {
 const SWAP = 0.5, MOVE_END = 0.92;
 const moveF = f => clamp((f - SWAP) / (MOVE_END - SWAP));
 
+// Deconstruction: between the hero and the first card, the finished can comes apart by playing the
+// build backwards, step by step (each step gets the same share of the scroll), until only the first
+// stage, the sensor base, is left. The first card then picks up from exactly that state.
+const DEC_START = 0.15;            // fraction of the hero's height scrolled before it starts
+function decT(u) {                 // u: 0 (finished can) → 1 (sensor base only); returns build time
+  const K = stepEnd.slice(0, -1).reverse();
+  K[0] = END;
+  const x = clamp(u) * (K.length - 1), i = Math.min(K.length - 2, Math.floor(x));
+  return K[i] + (K[i + 1] - K[i]) * (x - i);
+}
+
 // Scroll position drives the animation directly; the frame loop smooths it.
+// t: build time the parts are posed at. c: build time the camera follows. u: how far the view has
+// moved from the hero camera to the build camera (0…1). All three are continuous in y, so nothing jumps.
 function sceneAt(y) {
-  if (y < switchY) {               // hero: the finished can, slowly turning
-    return { mode: 'hero', t: END, opacity: 1 - ramp(y, heroH * 0.3, switchY - heroH * 0.3), spin: 0, active: -1 };
-  }
-  const opacity = ramp(y, switchY, heroH * 0.3);
   const last = anchors.length - 1, gap = anchors[1] - anchors[0];
-  if (y < anchors[0]) {
-    const s0 = anchors[0] - gap * (1 - SWAP);      // where the first card comes in
-    if (y < s0) {                  // camera moves in over the empty build plate
-      return { mode: 'build', t: 2.2 + (stepStart[0] - 2.2) * ramp(y, switchY, s0 - switchY), opacity, spin: 0, active: -1 };
-    }
-    const f = SWAP + (1 - SWAP) * (y - s0) / (anchors[0] - s0);
-    return { mode: 'build', t: stepStart[0] + (stepEnd[0] - stepStart[0]) * moveF(f), opacity, spin: 0, active: 0 };
+  const decA = heroH * DEC_START, s0 = Math.max(decA + 1, anchors[0] - gap * (1 - SWAP));   // s0: where the first card comes in
+  if (y < decA) {                  // hero: the finished can, slowly turning
+    return { mode: 'hero', t: END, c: stepEnd[0], u: 0, opacity: 1, spin: 0, active: -1 };
+  }
+  if (y < s0) {                    // the can takes itself apart as the camera moves in on the base
+    const u = (y - decA) / (s0 - decA);
+    return { mode: 'dec', t: decT(u), c: stepEnd[0], u, opacity: 1, spin: 0, active: -1 };
+  }
+  if (y < anchors[0]) {            // first card: the sensor base, already standing where the deconstruction left it
+    return { mode: 'build', t: stepEnd[0], c: stepEnd[0], u: 1, opacity: 1, spin: 0, active: 0 };
   }
   if (y >= anchors[last]) {        // past the last card: turn the finished can as you scroll
-    return { mode: 'build', t: END, opacity, spin: (y - anchors[last]) / H * 50, active: y - anchors[last] < gap / 2 ? last : -1 };
+    return { mode: 'build', t: END, c: END, u: 1, opacity: 1, spin: (y - anchors[last]) / H * 50, active: y - anchors[last] < gap / 2 ? last : -1 };
   }
   let i = 0;
   while (i < last - 1 && y >= anchors[i + 1]) i++;
   const f = (y - anchors[i]) / (anchors[i + 1] - anchors[i]);
-  return { mode: 'build', t: stepEnd[i] + (stepEnd[i + 1] - stepEnd[i]) * moveF(f), opacity, spin: 0, active: f < SWAP ? i : i + 1 };
+  const t = stepEnd[i] + (stepEnd[i + 1] - stepEnd[i]) * moveF(f);
+  return { mode: 'build', t, c: t, u: 1, opacity: 1, spin: 0, active: f < SWAP ? i : i + 1 };
 }
 
 /* ---------- soft snap: if you stop scrolling close to a step, ease the last bit onto it ---------- */
@@ -936,8 +949,25 @@ if (!renderer) {
     for (let b = .3; b <= 8; b += .3) { const d = camAt(t).az - camAt(t - b).az; if (Math.abs(d) > .5) return Math.sign(d); }
     return 1;
   }
-  let ready = false, mode = '', shownT = END, shownSpin = 0, heroClock = 0, lastNow = performance.now();
-  let drawn = { t: NaN, spin: NaN, clock: NaN, opacity: NaN, idle: NaN };
+  let ready = false, mode = '', shownT = END, shownC = stepEnd[0], shownU = 0, shownSpin = 0, heroClock = 0, lastNow = performance.now();
+  let drawn = { t: NaN, c: NaN, u: NaN, spin: NaN, clock: NaN, opacity: NaN, idle: NaN };
+  let decAz = null;                // azimuth the hero turn hands over to, fixed when the deconstruction starts
+
+  // The hero camera (following the parachute landing while it plays).
+  function heroView() {
+    const tz = W >= 900 ? 60 : 0, dist = W >= 900 ? 350 : 520, el = W >= 900 ? 16 : 12, az = HERO_AZ + heroClock * 7;   // on phones, aim low so the can sits above the hero text
+    if (!intro) return { target: [0, 0, tz], dist, az, el, out: 1 };
+    // start wide and high to follow the descent, then ease into the usual hero framing
+    const off = poseIntro(), wide = 1 - easeInOut(ramp(intro.t, CH.land - 1.1, CH.total - CH.land + 1.1));
+    const out = 1 + (W >= 900 ? 1 : 1.8) * wide, lift = (W >= 900 ? 150 : 0) * wide;   // phones have only a thin strip above the text: pull back further
+    return { target: [off.x * .6, off.y * .6, tz + off.z * .6 + lift], dist: dist * out, az, el, out };
+  }
+  // Ease a smoothed value toward its target, never slower than `rate` per second so the tail finishes.
+  const follow = (cur, to, k, rate, dt) => {
+    if (reduceMotion) return to;
+    const g = to - cur, v = cur + Math.sign(g) * Math.min(Math.abs(g), Math.max(Math.abs(g) * k, rate * dt));
+    return Math.abs(to - v) < 1e-3 ? to : v;
+  };
 
   function frame(now) {
     const dt = Math.min(.1, (now - lastNow) / 1000);
@@ -946,18 +976,19 @@ if (!renderer) {
     const y = scrollY, st = sceneAt(y);
     updateUI(y, st);
 
-    if (st.mode !== mode) { mode = st.mode; shownT = st.t; shownSpin = st.spin; }   // switch happens while the canvas is faded out
+    mode = st.mode;                // every value below is continuous across the hero → deconstruction → build hand-overs
     const k = reduceMotion ? 1 : 1 - Math.exp(-dt * 6);
     // Follow the scroll smoothly: ease toward it, but never slower than MIN_RATE× real time so the tail finishes.
-    const gap = st.t - shownT;
-    shownT += reduceMotion ? gap : Math.sign(gap) * Math.min(Math.abs(gap), Math.max(Math.abs(gap) * k, MIN_RATE * dt));
+    // The deconstruction packs the whole build into a short scroll, so the parts may catch up faster there.
+    shownT = follow(shownT, st.t, k, mode === 'dec' || shownU < 1 ? MIN_RATE * 8 : MIN_RATE, dt);
+    shownC = follow(shownC, st.c, k, MIN_RATE, dt);
+    shownU = follow(shownU, st.u, k, .15, dt);
     shownSpin += (st.spin - shownSpin) * k;
-    if (Math.abs(st.t - shownT) < 1e-3) shownT = st.t;
     if (Math.abs(st.spin - shownSpin) < 1e-3) shownSpin = st.spin;
-    if (mode === 'hero' && !reduceMotion && st.opacity > 0) heroClock += dt;
+    if (mode === 'hero' && shownU < 1 && !reduceMotion) heroClock += dt;
     if (intro) {
       intro.t = intro.t < 0 ? 0 : intro.t + dt;      // the first frame after loading is a long one: start the clock after it
-      if (mode !== 'hero' || intro.t >= CH.total) endIntro();   // scrolled away (canvas already faded out) or finished
+      if (mode === 'build' || intro.t >= CH.total) endIntro();   // scrolled well past, or finished
       dirty = true;
     }
 
@@ -985,14 +1016,14 @@ if (!renderer) {
     }
 
     // How fast the view is turning from the script, the scroll spin and dragging (everything but the idle turn).
-    const scriptAz = mode === 'build' ? camAt(shownT).az + shownSpin + userAz : NaN;
+    const scriptAz = mode === 'build' && shownU >= 1 ? camAt(shownC).az + shownSpin + userAz : NaN;
     const rawVel = Number.isFinite(prevScriptAz) && Number.isFinite(scriptAz) && dt > 0 ? (scriptAz - prevScriptAz) / dt : 0;   // this frame
     scriptVel = Number.isFinite(scriptAz) ? scriptVel + (rawVel - scriptVel) * (1 - Math.exp(-dt * 12)) : 0;                   // smoothed
     prevScriptAz = scriptAz;
     // Idle turn: whenever nothing else is turning the can (you've stopped, or the page is still gliding
     // through a stretch where nothing moves), it keeps turning slowly the way it was already going.
     // While the scroll is turning it, the idle offset unwinds, riding along so each step's view still lines up.
-    const live = ready && mode === 'build' && !orbitOn && !reduceMotion && !drag && st.opacity > 0;
+    const live = ready && mode === 'build' && shownU >= 1 && !orbitOn && !reduceMotion && !drag && st.opacity > 0;
     const scrolling = touching || now - lastInputAt < IDLE_DELAY;
     const idle = live && (!scrolling || Math.abs(scriptVel) < 1);
     if (idle && !idleW) idleDir = lastDir || azDir(shownT);   // keep turning the way it already was
@@ -1014,22 +1045,29 @@ if (!renderer) {
     if (!idle && Math.abs(idleAz) < .02 && Math.abs(idleVel) < .05) idleAz = idleVel = 0;
 
     if (st.opacity !== drawn.opacity) renderer.domElement.style.opacity = st.opacity;
-    const changed = dirty || shownT !== drawn.t || shownSpin !== drawn.spin || heroClock !== drawn.clock || idleAz !== drawn.idle;
+    if (shownU <= 0) decAz = null;
+    const changed = dirty || shownT !== drawn.t || shownC !== drawn.c || shownU !== drawn.u || shownSpin !== drawn.spin || heroClock !== drawn.clock || idleAz !== drawn.idle;
     if (ready && st.opacity > 0 && changed) {
       poseParts(shownT);
-      if (mode === 'hero') {          // on phones, aim low so the can sits above the hero text
-        const tz = W >= 900 ? 60 : 0, dist = W >= 900 ? 350 : 520, el = W >= 900 ? 16 : 12;
-        if (intro) {                  // start wide and high to follow the descent, then ease into the usual hero framing
-          const off = poseIntro(), wide = 1 - easeInOut(ramp(intro.t, CH.land - 1.1, CH.total - CH.land + 1.1));
-          const out = 1 + (W >= 900 ? 1 : 1.8) * wide, lift = (W >= 900 ? 150 : 0) * wide;   // phones have only a thin strip above the text: pull back further
-          scene.fog.near = 700 * frameScale * out; scene.fog.far = 1300 * frameScale * out;   // keep the haze where it normally sits
-          placeCamera([off.x * .6, off.y * .6, tz + off.z * .6 + lift], dist * out, HERO_AZ + heroClock * 7, el);
-        }
-        else placeCamera([0, 0, tz], dist, HERO_AZ + heroClock * 7, el);
+      const c = camAt(shownC);
+      let target = c.target, dist = c.dist, az = c.az + shownSpin + userAz + idleAz, el = c.el + userEl, out = 1;
+      if (shownU < 1) {               // hero camera, handing over to the build camera as the can comes apart
+        const h = heroView(), e = easeInOut(shownU);
+        // Keep turning the way the hero was turning: land on the build view's azimuth at or ahead of the hero's.
+        if (decAz === null) { const ref = camAt(stepEnd[0]).az; decAz = h.az + ((ref - h.az) % 360 + 360) % 360 - ref; }
+        // Halfway through, pull back and over a little so the sled, taken apart off to the side, stays in view.
+        const mid = Math.sin(Math.PI * shownU);
+        target = lerp3(h.target, target, e);
+        target = [target[0] + 45 * mid, target[1], target[2] + 20 * mid];
+        dist = h.dist + (dist - h.dist) * e + 110 * mid;
+        az = h.az + (az + decAz - h.az) * e;
+        el = h.el + (el - h.el) * e;
+        out = h.out + (1 - h.out) * e;
       }
-      else { const c = camAt(shownT); placeCamera(c.target, c.dist, c.az + shownSpin + userAz + idleAz, c.el + userEl); }
+      scene.fog.near = 700 * frameScale * out; scene.fog.far = 1300 * frameScale * out;   // keep the haze where it normally sits
+      placeCamera(target, dist, az, el);
       renderer.render(scene, camera);
-      drawn = { t: shownT, spin: shownSpin, clock: heroClock, opacity: st.opacity, idle: idleAz };
+      drawn = { t: shownT, c: shownC, u: shownU, spin: shownSpin, clock: heroClock, opacity: st.opacity, idle: idleAz };
       dirty = false;
     }
     drawn.opacity = st.opacity;
