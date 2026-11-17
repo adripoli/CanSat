@@ -28,6 +28,7 @@
   #stage { position:fixed; inset:0; z-index:0; transition:opacity .5s; }
   #stage canvas { display:block; width:100%; height:100%; }
   #stage.hidden { opacity:0; }
+  #stage.quick { transition-duration:.2s; }
   #fallback { position:fixed; inset:0; display:none; align-items:center; justify-content:center; color:var(--muted); font-size:15px; padding:24px; text-align:center; }
   #labels { position:fixed; inset:0; z-index:2; pointer-events:none; overflow:hidden; }
   .lbl { position:absolute; left:0; top:0; display:flex; align-items:center; gap:7px; opacity:0; white-space:nowrap; will-change:transform;
@@ -201,41 +202,10 @@
     #explore { padding:64px 16px; }
     footer { padding:20px 16px; }
   }
-
-  /* ---------- cloud bank between the landing page and the mission page (identical on both pages) ----------
-     The index sweeps it down over the screen as the can lifts off; the mission page opens under it and
-     sweeps it on down and away, so the page change happens inside the clouds. */
-  #veil { position:fixed; left:0; right:0; top:-50vh; height:200vh; z-index:60; pointer-events:none; visibility:hidden;
-          transform:translateY(-150vh); will-change:transform;
-          -webkit-mask-image:linear-gradient(transparent, #000 25%, #000 75%, transparent); mask-image:linear-gradient(transparent, #000 25%, #000 75%, transparent);
-          background:
-            radial-gradient(30% 7% at 16% 27%, #fff, rgba(255,255,255,0)),
-            radial-gradient(36% 8% at 74% 31%, #fff, rgba(255,255,255,0)),
-            radial-gradient(26% 6% at 44% 41%, rgba(255,255,255,.95), rgba(255,255,255,0)),
-            radial-gradient(34% 7% at 86% 50%, #fff, rgba(255,255,255,0)),
-            radial-gradient(32% 7% at 22% 57%, #fff, rgba(255,255,255,0)),
-            radial-gradient(30% 6% at 60% 66%, rgba(255,255,255,.95), rgba(255,255,255,0)),
-            radial-gradient(34% 7% at 30% 76%, #fff, rgba(255,255,255,0)),
-            linear-gradient(#e4eaf0, #f3f6f9 30%, #f6f8fa 50%, #f3f6f9 70%, #e4eaf0); }
-  html.veil-in #veil { visibility:visible; transform:none; transition:transform .9s cubic-bezier(.5,0,.8,.45); }
-  html.veil-on #veil { visibility:visible; transform:none; }
-  html.veil-on.veil-out #veil { transform:translateY(150vh); transition:transform 1.5s cubic-bezier(.2,.55,.35,1); }
-  @media (prefers-reduced-motion: reduce) { #veil { display:none; } }
 </style>
-<script>
-  // Arriving from the landing page through its cloud bank: start under the same clouds (before the first paint).
-  try {
-    const v = JSON.parse(sessionStorage.getItem('runnysat-leave') || 'null');
-    if (v && v.clouds && Date.now() - v.at < 8000 && !location.hash && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      document.documentElement.classList.add('veil-on');
-      setTimeout(() => { const c = document.documentElement.classList; if (c.contains('veil-on')) c.add('veil-out'); }, 8000);   // never leave the page covered
-    }
-  } catch (e) {}
-</script>
 <script type="importmap">{ "imports": { "three": "./assets/three.module.min.js" } }</script>
 </head>
 <body>
-<div id="veil" aria-hidden="true"></div>
 <div id="stage" aria-hidden="true"></div>
 <div id="fallback">The 3D scene needs WebGL, which isn't available in this browser. The mission is still described below.</div>
 <div id="labels" aria-hidden="true"></div>
@@ -440,18 +410,29 @@ if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
 const deepLink = location.hash && location.hash.length > 1 && document.querySelector(location.hash);
 let fromIndex = null;
 try { fromIndex = JSON.parse(sessionStorage.getItem('runnysat-leave') || 'null'); sessionStorage.removeItem('runnysat-leave'); } catch (e) {}
-if (fromIndex && Date.now() - fromIndex.at > 8000) fromIndex = null;
-const throughClouds = root.classList.contains('veil-on');   // the landing page's cloud bank is covering the screen
-// Clear the clouds away (once the scene under them is drawing).
-function clearClouds() {
-  if (!throughClouds) return;
-  root.classList.add('veil-out');
-  setTimeout(() => root.classList.remove('veil-on', 'veil-out'), 1600);
-}
+if (fromIndex && Date.now() - fromIndex.at > 4000) fromIndex = null;
+// Opened inside the landing page (index.html?…): it loads this page in a frame, out of sight, while its own can
+// moves to the middle of the screen. This page then waits, drawing the can exactly where the landing page shows it,
+// until the landing page says "go" (with the can's current heading); the landing page swaps it in on that frame.
+const embedded = window.parent !== window && new URLSearchParams(location.search).has('handoff');
+const tellParent = msg => { try { parent.postMessage({ runnysat: msg }, location.origin); } catch (e) {} };
+let waiting = embedded;             // holding the opening's first frame until the landing page hands over
 const playIntro = !reduceMotion && !deepLink;
 if (!playIntro) root.classList.remove('intro');
 else scrollTo(0, 0);
-if (!throughClouds) stage.classList.add('hidden');      // shown once the model is in (under the clouds, it needs no fade)
+if (!embedded) stage.classList.add('hidden');      // shown once the model is in (in the landing page, it is out of sight until then anyway)
+if (fromIndex && fromIndex.hero) stage.classList.add('quick');
+if (embedded) {
+  // Links that leave this page take the whole window with them, not just this frame.
+  document.addEventListener('click', e => {
+    const a = e.target.closest && e.target.closest('a[href]');
+    if (!a || e.defaultPrevented || a.target) return;
+    const u = new URL(a.href, location.href);
+    if (u.pathname === location.pathname && u.hash) return;   // a section of this page: scroll here
+    e.preventDefault();
+    top.location.href = u.pathname === location.pathname ? u.pathname : u.href;
+  });
+}
 
 /* ---------- sensor view mode (shared by the HUD chips and the sensor cards) ---------- */
 const MODES = ['ndvi', 'thermal', 'rededge', 'fused'];
@@ -661,7 +642,6 @@ try { renderer = new THREE.WebGLRenderer({ antialias: true }); } catch (e) { ren
 
 if (!renderer) {
   $('fallback').style.display = 'flex';
-  clearClouds();
   root.classList.remove('intro');
   $('hud').classList.remove('wait');
   measure();
@@ -1068,10 +1048,8 @@ if (!renderer) {
   const mixCam = (a, b, f) => ({ target: lerp3(a.target, b.target, f), dist: lerp(a.dist, b.dist, f), az: lerp(a.az, b.az, f), el: lerp(a.el, b.el, f), drop: lerp(a.drop || 0, b.drop || 0, f) });
 
   /* ---------- the opening: liftoff, apogee, parachute, descent, down to the sensors ---------- */
+  let startAz = fromIndex && fromIndex.hero ? ((fromIndex.az % 360) + 360) % 360 : 330;
   const IN = { lift: .9, liftEnd: 2.7, deploy: 3.0, descend: 4.2, pan: 5.3, sensors: 6.9, beams: 7.1, settle: 7.5, end: 9.6 };
-  // Through the clouds: the can already lifted off on the landing page, so pick the climb up inside the cloud layer.
-  const T0 = throughClouds ? 2.3 : 0;
-  const startAz = fromIndex && fromIndex.hero ? (((fromIndex.az - 7 * T0) % 360) + 360) % 360 : 330;
   const STEPS = [[0, 'Liftoff'], [IN.deploy, 'Parachute out'], [IN.descend, 'Descent'], [IN.pan, 'Down to the sensors'], [IN.beams, 'Looking at the ground']];
   function introAt(t) {
     const st = {};
@@ -1083,11 +1061,14 @@ if (!renderer) {
     st.sky = easeInOut(ramp(t, IN.lift + .3, 1.4));
     // Clouds rush down past the can on the way up, stop at apogee, then drift up slowly as it falls.
     const climb = t < IN.liftEnd ? 1 : 1 - easeOut(ramp(t, IN.liftEnd, .5));
-    st.cloudV = -5200 * Math.pow(ramp(t, IN.lift + .3, 1), 2) * climb + 260 * smooth(IN.liftEnd, IN.deploy + .4, t);
-    st.cloud = smooth(IN.lift + .5, IN.lift + 1.1, t) * (1 - smooth(IN.descend + .5, IN.pan + .8, t));
+    // On the way down the can sinks through the cloud layer, so they rise past it until it drops out below them.
+    st.cloudV = -5200 * Math.pow(ramp(t, IN.lift + .3, 1), 2) * climb + 260 * smooth(IN.liftEnd, IN.deploy + .4, t) + 1100 * smooth(IN.deploy + .3, IN.descend, t);
+    st.cloud = smooth(IN.lift + .5, IN.lift + 1.1, t) * (1 - smooth(IN.pan + .2, IN.sensors - .2, t));
     st.chute = easeOutBack(ramp(t, IN.deploy, .85));
     st.groundZ = lerp(-8000, GROUND_Z, easeOut(ramp(t, IN.deploy, IN.sensors - IN.deploy)));
-    st.ground = t > IN.deploy;
+    // The ground only shows once the can is out of the clouds, close enough to see it properly.
+    st.groundA = smooth(IN.pan - .2, IN.sensors - .5, t);
+    st.ground = st.groundA > 0;
     st.beams = easeInOut(ramp(t, IN.beams, 1.4));
     st.beamShow = smooth(IN.sensors - .5, IN.sensors, t);
     st.overlay = smooth(IN.beams + 1.1, IN.beams + 1.8, t);
@@ -1107,10 +1088,23 @@ if (!renderer) {
     return st;
   }
   // The hero shot keeps the azimuth the opening ends on, so nothing swings round when the page appears.
-  const endAz = startAz + 7 * IN.settle + 40;
-  SHOTS.sensors.az = endAz % 360;
-  SHOTS.sensors2.az = SHOTS.sensors.az - 95;
-  const AFTER = { studioZ: -1e5, studio: 0, sky: 1, cloudV: 0, cloud: 0, chute: 1, groundZ: GROUND_Z, ground: true, beams: 1, beamShow: 1, overlay: 1, labels: 0, tumble: 0 };
+  let endAz;
+  function aimFrom(az) {
+    startAz = ((az % 360) + 360) % 360;
+    endAz = startAz + 7 * IN.settle + 40;
+    SHOTS.sensors.az = endAz % 360;
+    SHOTS.sensors2.az = SHOTS.sensors.az - 95;
+  }
+  aimFrom(startAz);
+  // The landing page hands over: start the opening from the heading its can is showing right now.
+  let goPending = false;
+  if (embedded) addEventListener('message', e => {
+    if (e.origin !== location.origin || !e.data || e.data.runnysat !== 'go' || !waiting) return;
+    aimFrom(e.data.az);
+    waiting = false; goPending = true; introT = -1;
+    introCap.classList.remove('wait');
+  });
+  const AFTER = { studioZ: -1e5, studio: 0, sky: 1, cloudV: 0, cloud: 0, chute: 1, groundZ: GROUND_Z, ground: true, groundA: 1, beams: 1, beamShow: 1, overlay: 1, labels: 0, tumble: 0 };
 
   /* ---------- layout: during the opening the scene is centred; then it moves clear of the text column ---------- */
   let side = 0;                         // 0 centred → 1 beside the text
@@ -1171,13 +1165,14 @@ if (!renderer) {
   function frame(now) {
     const dt = Math.min(.1, (now - lastNow) / 1000);
     lastNow = now;
+    if (waiting && frame.ready) { requestAnimationFrame(frame); return; }   // drawn and ready: idle until the landing page hands over
     const y = scrollY;
     updateUI(y);
-    if (!reduceMotion) clock += dt;
+    if (!reduceMotion && !waiting) clock += dt;
 
     let st;
     if (ready && introT < IN.end + 1.2) {
-      introT = introT < 0 ? T0 : introT + dt;   // the first frame after loading is a long one: start the clock after it
+      introT = waiting || introT < 0 ? 0 : introT + dt;   // the first frame after loading (or after the hand-over) is a long one: start the clock after it
       st = introAt(introT);
       for (const [t, name] of STEPS) if (introT >= t) introStep.textContent = name;
       introCap.classList.toggle('wait', introT > IN.end - .6);
@@ -1221,9 +1216,12 @@ if (!renderer) {
     }
     ground.visible = st.ground;
     ground.position.z = st.groundZ;
+    const gTr = st.groundA < .999;
+    if (gTr !== ground.material.transparent) { ground.material.transparent = gTr; ground.material.needsUpdate = true; }
+    ground.material.opacity = st.groundA;
     const tx = TILE * (frac((TURF.u0 + TURF.u1) / 2 - drift + .5) - .5);
     turf.position.set(tx, 0, st.groundZ + .4);
-    turf.material.opacity = 1 - smooth(1100, 1700, Math.abs(tx));
+    turf.material.opacity = (1 - smooth(1100, 1700, Math.abs(tx))) * st.groundA;
     turf.visible = st.ground && turf.material.opacity > .01;
 
     // Can and parachute: a gentle swing under the canopy (about the base), and a tumble on the way up.
@@ -1254,6 +1252,10 @@ if (!renderer) {
     scene.fog.far = st.sky > .5 ? fogNear + 2600 + d * 1.6 : 1300 * fr.scale + 2000;
 
     renderer.render(scene, camera);
+    if (embedded) {
+      if (waiting && !frame.ready) { frame.ready = true; tellParent('ready'); }   // drawn once, so the shaders are warm
+      else if (goPending) { goPending = false; tellParent('shown'); }            // the first frame of the opening is up
+    }
     poseLabels({ sensors: Math.max(introDone ? 0 : st.labels, introDone ? shotFx.sensors : 0), data: introDone ? shotFx.data : 0 });
     requestAnimationFrame(frame);
   }
@@ -1264,10 +1266,9 @@ if (!renderer) {
     buildMeshes(model);
     ready = true;
     stage.classList.remove('hidden');
-    requestAnimationFrame(() => requestAnimationFrame(clearClouds));   // after the first frames of the climb are on screen
-    if (playIntro) { introCap.classList.remove('wait'); }
+    if (playIntro && !embedded) { introCap.classList.remove('wait'); }
     else if (deepLink) requestAnimationFrame(() => { measure(); deepLink.scrollIntoView(); });
-  }).catch(() => { $('fallback').textContent = 'Could not load the 3D model.'; $('fallback').style.display = 'flex'; finishIntro(); clearClouds(); });
+  }).catch(() => { $('fallback').textContent = 'Could not load the 3D model.'; $('fallback').style.display = 'flex'; finishIntro(); tellParent('failed'); });
 }
 </script>
 </body>

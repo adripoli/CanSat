@@ -52,6 +52,10 @@
   body.leaving main, body.leaving .nav, body.leaving #rail, body.leaving #progress, body.leaving #orbitHint, body.leaving #loading,
   body.leaving #explore, body.leaving footer { opacity:0 !important; pointer-events:none; transition:opacity .4s; }
   body.leaving-all #stage { opacity:0; transition:opacity .35s; }
+  /* the mission page, opened inside this one: loaded out of sight, swapped in on the frame where its can matches ours */
+  #missionFrame { position:fixed; left:0; top:0; width:100vw; height:100vh; border:0; margin:0; z-index:100; opacity:0; pointer-events:none; background:transparent; }
+  #missionFrame.shown { opacity:1; pointer-events:auto; }
+  html.in-mission { overflow:hidden; }
   #progress { position:fixed; top:60px; left:0; height:2px; width:100%; z-index:10; transform-origin:0 50%; transform:scaleX(0); background:var(--accent); opacity:0; transition:opacity .3s; }
 
   /* ---------- chapter rail ---------- */
@@ -175,31 +179,10 @@
     footer { padding:20px 16px; }
   }
   @media (min-width: 900px) { #hero .panel-sm { display:contents; } }
-
-  /* ---------- cloud bank between the landing page and the mission page (identical on both pages) ----------
-     The index sweeps it down over the screen as the can lifts off; the mission page opens under it and
-     sweeps it on down and away, so the page change happens inside the clouds. */
-  #veil { position:fixed; left:0; right:0; top:-50vh; height:200vh; z-index:60; pointer-events:none; visibility:hidden;
-          transform:translateY(-150vh); will-change:transform;
-          -webkit-mask-image:linear-gradient(transparent, #000 25%, #000 75%, transparent); mask-image:linear-gradient(transparent, #000 25%, #000 75%, transparent);
-          background:
-            radial-gradient(30% 7% at 16% 27%, #fff, rgba(255,255,255,0)),
-            radial-gradient(36% 8% at 74% 31%, #fff, rgba(255,255,255,0)),
-            radial-gradient(26% 6% at 44% 41%, rgba(255,255,255,.95), rgba(255,255,255,0)),
-            radial-gradient(34% 7% at 86% 50%, #fff, rgba(255,255,255,0)),
-            radial-gradient(32% 7% at 22% 57%, #fff, rgba(255,255,255,0)),
-            radial-gradient(30% 6% at 60% 66%, rgba(255,255,255,.95), rgba(255,255,255,0)),
-            radial-gradient(34% 7% at 30% 76%, #fff, rgba(255,255,255,0)),
-            linear-gradient(#e4eaf0, #f3f6f9 30%, #f6f8fa 50%, #f3f6f9 70%, #e4eaf0); }
-  html.veil-in #veil { visibility:visible; transform:none; transition:transform .9s cubic-bezier(.5,0,.8,.45); }
-  html.veil-on #veil { visibility:visible; transform:none; }
-  html.veil-on.veil-out #veil { transform:translateY(150vh); transition:transform 1.5s cubic-bezier(.2,.55,.35,1); }
-  @media (prefers-reduced-motion: reduce) { #veil { display:none; } }
 </style>
 <script type="importmap">{ "imports": { "three": "./assets/three.module.min.js" } }</script>
 </head>
 <body>
-<div id="veil" aria-hidden="true"></div>
 <div id="stage" aria-hidden="true"></div>
 <div id="fallback">The 3D model needs WebGL, which isn't available in this browser. The build steps below still explain every part.</div>
 
@@ -698,27 +681,83 @@ function updateUI(y, st) {
   progress.style.transform = `scaleX(${clamp((y - switchY) / (anchors[last] - switchY))})`;
 }
 
-/* ---------- the Mission buttons: hand the can over to the mission page ----------
-   The can moves to the middle of the screen (from the hero view), lifts off, and a cloud bank sweeps
-   down over everything. The mission page opens under the same clouds and carries on the climb. */
-let leaveHero = null;                // set by the 3D scene: starts the hand-over animation, or returns false
-const VEIL_MS = 900;                 // the cloud bank's sweep (matches html.veil-in #veil in the CSS)
-function rememberLeave(info) { try { sessionStorage.setItem('runnysat-leave', JSON.stringify({ ...info, clouds: !reduceMotion, at: Date.now() })); } catch (e) {} }
-// Sweep the clouds in, then change page while they cover the screen.
-function cloudsThenGo(url, info) {
-  if (reduceMotion) { rememberLeave(info); location.href = url; return; }
-  document.documentElement.classList.add('veil-in');
-  setTimeout(() => { rememberLeave(info); location.href = url; }, VEIL_MS + 30);
+/* ---------- the Mission buttons: the mission opens inside this page, with no page change ----------
+   The mission page loads out of sight in a full-window frame while the can here moves to the middle of the
+   screen (put back together first, if it was apart). The mission page draws its opening's first frame (the can on
+   the same floor, from the same angle), and on the frame it is ready it is swapped in, so the liftoff, parachute and
+   descent simply carry on from here. The address then reads mission.html; going back returns to this page. */
+let sceneReady = () => false;        // set by the 3D scene
+let leaveScene = null;               // set by the 3D scene: brings the can to the middle, then hands it over
+let resetLeave = () => {};           // set by the 3D scene: back to normal after returning
+let handedOver = false;              // the mission is showing: stop drawing here
+let mission = null;                  // { frame, url, ready, failed, shown }
+const homeTitle = document.title;
+const canHandOver = () => !reduceMotion && sceneReady();
+function sizeMission() { if (mission) Object.assign(mission.frame.style, { width: innerWidth + 'px', height: innerHeight + 'px' }); }
+function loadMission(href) {
+  if (mission) return mission;
+  const url = new URL(href, location.href), src = new URL(url);
+  src.searchParams.set('handoff', '1');
+  const frame = document.createElement('iframe');
+  frame.id = 'missionFrame'; frame.title = 'Mission'; frame.tabIndex = -1;
+  frame.setAttribute('aria-hidden', 'true');
+  frame.src = src.href;
+  mission = { frame, url: url.href, ready: false, failed: false, shown: false };
+  document.body.appendChild(frame);
+  sizeMission();
+  return mission;
 }
-document.querySelectorAll('a[data-leave]').forEach(a => a.addEventListener('click', e => {
-  if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-  e.preventDefault();
-  if (document.body.classList.contains('leaving')) return;
-  document.body.classList.add('leaving');
-  if (leaveHero && leaveHero(a.href)) return;   // the frame loop lifts the can off once it is centred, then brings the clouds in
-  cloudsThenGo(a.href, { hero: false });
-}));
-addEventListener('pageshow', e => { if (e.persisted) { document.body.classList.remove('leaving', 'leaving-all'); document.documentElement.classList.remove('veil-in'); } });
+addEventListener('resize', sizeMission);
+addEventListener('message', e => {
+  if (e.origin !== location.origin || !mission || e.source !== mission.frame.contentWindow || !e.data) return;
+  const m = e.data.runnysat;
+  if (m === 'ready') mission.ready = true;
+  else if (m === 'failed') mission.failed = true;
+  else if (m === 'shown') showMission();
+});
+function showMission() {
+  if (!mission || mission.shown) return;
+  mission.shown = true;
+  clearTimeout(mission.timer);
+  const fr = mission.frame;
+  fr.classList.add('shown');
+  fr.removeAttribute('aria-hidden');
+  fr.tabIndex = 0;
+  document.documentElement.classList.add('in-mission');
+  handedOver = true;
+  try { history.pushState({ mission: true }, '', mission.url); } catch (e) {}
+  try { document.title = fr.contentDocument.title || 'RunnySat · Mission'; } catch (e) {}
+  fr.focus();
+}
+const goToMission = href => { location.href = href; };   // the plain way, when the hand-over can't happen
+addEventListener('popstate', e => {
+  if (mission && mission.shown && location.href !== mission.url) {   // back: this page again, as it was
+    mission.frame.remove();
+    mission = null;
+    handedOver = false;
+    document.documentElement.classList.remove('in-mission');
+    document.body.classList.remove('leaving', 'leaving-all');
+    document.title = homeTitle;
+    resetLeave();
+  } else if (!mission && e.state && e.state.mission) location.reload();   // forward again: open the mission page itself
+});
+document.querySelectorAll('a[data-leave]').forEach(a => {
+  const preload = () => { if (canHandOver()) loadMission(a.href); };   // start loading as soon as it looks likely
+  a.addEventListener('pointerenter', preload);
+  a.addEventListener('focus', preload);
+  a.addEventListener('touchstart', preload, { passive: true });
+  a.addEventListener('click', e => {
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    if (!canHandOver()) return;                  // no 3D here: just follow the link
+    e.preventDefault();
+    if (document.body.classList.contains('leaving')) return;
+    document.body.classList.add('leaving');
+    const m = loadMission(a.href);
+    leaveScene();
+    m.timer = setTimeout(() => { if (!m.shown) goToMission(m.url); }, 9000);   // never leave you waiting
+  });
+});
+addEventListener('pageshow', e => { if (e.persisted) document.body.classList.remove('leaving', 'leaving-all'); });
 
 /* ================= 3D scene ================= */
 let renderer;
@@ -1020,15 +1059,25 @@ if (!renderer) {
   let ready = false, mode = '', shownT = END, shownC = stepEnd[0], shownU = 0, shownSpin = 0, heroClock = 0, lastNow = performance.now();
   let drawn = { t: NaN, c: NaN, u: NaN, spin: NaN, clock: NaN, opacity: NaN, idle: NaN };
   let decAz = null;                // azimuth the hero turn hands over to, fixed when the deconstruction starts
-  // Hand-over to the mission page: only from the hero view, where the can is whole and the mission page can pick it up.
-  const LEAVE_MS = 650;
+  // Hand-over to the mission page: the can goes back together (if it was apart, or still under its parachute),
+  // and moves to the middle of the screen, framed exactly the way the mission page's opening starts.
   let leave = null;
-  leaveHero = url => {
-    if (!ready || intro || mode !== 'hero' || shownU > .001 || reduceMotion) return false;
-    leave = { start: performance.now(), url };
-    return true;
+  const Q0 = new THREE.Quaternion();
+  sceneReady = () => ready;
+  leaveScene = () => {
+    const whole = mode === 'hero' && shownU <= .001 && !intro;
+    leave = { start: performance.now(), dur: whole ? 650 : 1150 };
   };
-  addEventListener('pageshow', e => { if (e.persisted && leave) { leave = null; rig.position.set(0, 0, 0); layout(); } });
+  resetLeave = () => {
+    leave = null;
+    if (intro) endIntro();
+    rig.position.set(0, 0, 0); rig.quaternion.identity();
+    sun.target.position.x = 45;
+    Object.assign(sun.shadow.camera, { left: -170, right: 170, top: 170, bottom: -170 });
+    sun.shadow.camera.updateProjectionMatrix();
+    layout();
+  };
+  addEventListener('pageshow', e => { if (e.persisted && leave) resetLeave(); });
 
   // The hero camera (following the parachute landing while it plays).
   function heroView() {
@@ -1049,6 +1098,8 @@ if (!renderer) {
   function frame(now) {
     const dt = Math.min(.1, (now - lastNow) / 1000);
     lastNow = now;
+    // Handed over (or about to be, on the mission page's next frame): hold the last frame, draw nothing more.
+    if (handedOver || (leave && leave.sent)) { requestAnimationFrame(frame); return; }
     softSnap(now);
     stepDec(scrollY, dt, ready);
     const y = scrollY, st = sceneAt(y);
@@ -1129,7 +1180,8 @@ if (!renderer) {
     if (leave) dirty = true;
     const changed = dirty || shownT !== drawn.t || shownC !== drawn.c || shownU !== drawn.u || shownSpin !== drawn.spin || heroClock !== drawn.clock || idleAz !== drawn.idle;
     if (ready && st.opacity > 0 && changed) {
-      poseParts(shownT);
+      const eL = leave ? easeInOut(clamp((performance.now() - leave.start) / leave.dur)) : 0;
+      poseParts(leave ? shownT + (END - shownT) * eL : shownT);   // leaving: put the can back together on the way
       const c = camAt(shownC);
       let target = c.target, dist = c.dist, az = c.az + shownSpin + userAz + idleAz, el = c.el + userEl, out = 1;
       if (shownU < 1) {               // hero camera, handing over to the build camera as the can comes apart
@@ -1148,19 +1200,29 @@ if (!renderer) {
       scene.fog.near = 700 * frameScale * out; scene.fog.far = 1300 * frameScale * out;   // keep the haze where it normally sits
       let scale = frameScale;
       if (leave) {                    // slide the can to the middle of the screen, framed the way the mission page opens
-        const e = easeInOut(clamp((now - leave.start) / LEAVE_MS));
+        const e = eL;
+        if (intro) {                  // still under the parachute: set it down and let the canopy go
+          const f = 1 - e;
+          for (const m of chute.mats) { if (!m.transparent) { m.transparent = true; m.needsUpdate = true; chute.solid = false; } m.opacity *= f; }
+          chute.edgeMat.opacity *= f; chute.lineMat.opacity *= f;
+          rig.position.multiplyScalar(f); rig.quaternion.slerp(Q0, e);
+          rig.updateMatrixWorld(true);
+        }
         target = lerp3(target, [0, 0, 60], e); dist += (350 - dist) * e; el += (16 - el) * e;
-        scale = frameScale + (Math.max(1, (W >= H ? 1.6 : .95) * H / W) - frameScale) * e;   // same as the mission page's opening frame
+        scale = frameScale + (Math.max(1, (W >= 900 || W >= H ? 1.6 : .95) * H / W) - frameScale) * e;   // same as the mission page's opening frame
         camera.setViewOffset(W, H, -viewOx * (1 - e), viewOy * (1 - e), W, H);
         camera.updateProjectionMatrix();
-        if (e >= 1 && !leave.up) {     // centred: lift off into the clouds
-          leave.up = now;
-          cloudsThenGo(leave.url, { hero: true, az });
-        }
-        if (leave.up) {                // the can climbs away while the camera stays put, as the mission page's liftoff does
-          const f = clamp((now - leave.up) / VEIL_MS);
-          rig.position.set(0, 0, 700 * f * f * f);
-          rig.updateMatrixWorld(true);
+        // The mission page lights the can from straight over its middle: match its shadow by the end.
+        sun.target.position.x = 45 * (1 - e);
+        const b = 170 - 20 * e;
+        Object.assign(sun.shadow.camera, { left: -b, right: b, top: b, bottom: -b });
+        sun.shadow.camera.updateProjectionMatrix();
+        if (e >= 1 && mission) {
+          if (mission.failed) goToMission(mission.url);
+          else if (mission.ready && !leave.sent) {   // this is the frame the mission page starts from
+            leave.sent = true;
+            mission.frame.contentWindow.postMessage({ runnysat: 'go', az }, location.origin);
+          }
         }
       }
       placeCamera(target, dist, az, el, scale);
