@@ -600,6 +600,13 @@ function stepDec(y, dt, go) {      // advance the deconstruction clock (go: the 
 // t: build time the parts are posed at. c: build time the camera follows. u: how far the view has
 // moved from the hero camera to the build camera (0…1). All three change continuously, so nothing jumps.
 function sceneAt(y) {
+  const st = scrollScene(y);
+  // Jumping from the top straight to the specs (the nav's Specs link): the page glides past the build, but the can
+  // stays whole; only the view moves over to where the specs show it, ending exactly as the specs show it.
+  if (jump) return { mode: 'jump', t: END, c: END, u: 1, opacity: 1, spin: Math.max(0, jump.to - anchors[anchors.length - 1]) / H * 50, active: st.active };
+  return st;
+}
+function scrollScene(y) {
   const last = anchors.length - 1, gap = anchors[1] - anchors[0];
   const p = decP, dec = { t: decT(p * p * (3 - 2 * p)), c: stepEnd[0], u: p, opacity: 1, spin: 0 };
   if (y < firstY) {                // hero → first card: the finished can, or coming apart / back together
@@ -620,6 +627,23 @@ function sceneAt(y) {
   // Scrolled past the first card before the can finished coming apart: let it finish first, then catch up.
   return p < 1 ? { ...dec, mode: 'dec', active: st.active } : st;
 }
+
+/* ---------- Specs link from the top: go straight there with the can left whole ---------- */
+let jump = null, lastMoveAt = 0;   // jump: { to, start } while gliding down to the specs
+const endJump = () => { jump = null; };
+function stepJump(now) {           // the glide is over once the page stops moving (or you take over)
+  if (jump && now - jump.start > 200 && now - lastMoveAt > 150) jump = null;
+}
+addEventListener('scroll', () => { lastMoveAt = performance.now(); }, { passive: true });
+for (const ev of ['wheel', 'touchstart', 'keydown']) addEventListener(ev, endJump, { passive: true });
+document.querySelectorAll('a[href="#specs"]').forEach(a => a.addEventListener('click', e => {
+  if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+  if (!renderer || reduceMotion || scrollY >= firstY) return;   // only from the top, and only when it would glide
+  const to = Math.min(document.querySelector('#specs').getBoundingClientRect().top + scrollY, root.scrollHeight - innerHeight);
+  if (to <= scrollY) return;
+  jump = { to, start: performance.now() };
+  decP = decGoal = 1;              // arrive as if the build had been scrolled through, so nothing replays afterwards
+}));
 
 /* ---------- soft snap: if you stop scrolling close to a step, ease the last bit onto it ---------- */
 const SNAP_RANGE = 0.17;   // fraction of the screen height
@@ -1101,6 +1125,7 @@ if (!renderer) {
     // Handed over (or about to be, on the mission page's next frame): hold the last frame, draw nothing more.
     if (handedOver || (leave && leave.sent)) { requestAnimationFrame(frame); return; }
     softSnap(now);
+    stepJump(now);
     stepDec(scrollY, dt, ready);
     const y = scrollY, st = sceneAt(y);
     updateUI(y, st);
