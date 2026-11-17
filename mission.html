@@ -54,14 +54,6 @@
   .pill .dot { display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--accent); margin-right:7px; vertical-align:1px; }
   #progress { position:fixed; top:60px; left:0; height:2px; width:100%; z-index:10; transform-origin:0 50%; transform:scaleX(0); background:var(--accent); }
 
-  /* ---------- intro chrome ---------- */
-  #introCap { position:fixed; z-index:6; left:50%; bottom:34px; transform:translateX(-50%); display:flex; align-items:center; gap:14px;
-              background:var(--panel); border:1px solid var(--line); border-radius:999px; padding:6px 6px 6px 16px; backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
-              box-shadow:0 6px 20px rgba(20,30,40,.10); font-size:13px; color:var(--muted); transition:opacity .45s, transform .45s; white-space:nowrap; }
-  #introCap b { color:var(--ink); font-weight:600; font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:.06em; text-transform:uppercase; }
-  html:not(.intro) #introCap { opacity:0; transform:translate(-50%, 10px); pointer-events:none; }
-  #introCap.wait { opacity:0; }
-
   /* ---------- layout ---------- */
   main { position:relative; z-index:3; transition:opacity .8s .1s; }
   html.intro main, html.intro #explore, html.intro footer { opacity:0; pointer-events:none; }
@@ -196,7 +188,6 @@
     #hud dd { font-size:11px; }
     #hud .rows > :not(.keep) { display:none; }
     #hud .ft, #hud .bands, #hud .bands-l, #hud .ramp, #hud .ramp-l, #hud .opt { display:none !important; }
-    #introCap { bottom:22px; }
     #explore { padding:64px 16px; }
     footer { padding:20px 16px; }
   }
@@ -219,8 +210,6 @@
   </nav>
 </header>
 <div id="progress"></div>
-
-<div id="introCap" class="wait"><b id="introStep">Liftoff</b></div>
 
 <aside id="hud" class="wait payload" aria-label="Live readout (simulated)">
   <div class="hd"><b id="hudTitle">Payload · 1 s summary</b><span>simulated</span></div>
@@ -1068,8 +1057,7 @@ if (!renderer) {
 
   /* ---------- the opening: liftoff, apogee, parachute, descent, down to the sensors ---------- */
   let startAz = fromIndex && fromIndex.hero ? ((fromIndex.az % 360) + 360) % 360 : 330;
-  const IN = { lift: .9, liftEnd: 2.7, deploy: 3.0, descend: 4.2, pan: 5.3, sensors: 6.9, beams: 7.1, settle: 7.5, end: 9.6 };
-  const STEPS = [[0, 'Liftoff'], [IN.deploy, 'Parachute out'], [IN.descend, 'Descent'], [IN.pan, 'Down to the sensors'], [IN.beams, 'Looking at the ground']];
+  const IN = { lift: .9, liftEnd: 2.7, deploy: 3.4, descend: 4.8, pan: 5.8, sensors: 7.4, beams: 7.6, settle: 8.0, end: 10.1 };
   // Everything up to the sensor reveal plays at double speed; the rest at normal speed.
   const introRate = t => t < IN.sensors ? 2 : 1;
   function introAt(t) {
@@ -1080,10 +1068,17 @@ if (!renderer) {
     st.studioZ = -L;
     st.studio = 1 - ramp(t, IN.lift + .6, .9);
     st.sky = easeInOut(ramp(t, IN.lift + .3, 1.4));
-    // Clouds rush down past the can on the way up, stop at apogee, then drift up slowly as it falls.
+    // Clouds rush down past the can on the way up, stop at apogee, then race up past it as it free-falls.
     const climb = t < IN.liftEnd ? 1 : 1 - easeOut(ramp(t, IN.liftEnd, .5));
-    // On the way down the can sinks through the cloud layer, so they rise past it until it drops out below them.
-    st.cloudV = -5200 * Math.pow(ramp(t, IN.lift + .3, 1), 2) * climb + 260 * smooth(IN.liftEnd, IN.deploy + .4, t) + 1100 * smooth(IN.deploy + .3, IN.descend, t);
+    // The parachute snatches tight once it has filled: the fall is checked hard, the can jerks back up
+    // (the clouds briefly reverse), then it sinks slowly through the cloud layer under the canopy.
+    const snatch = IN.deploy + .3;
+    const freeFall = 3400 * easeIn(ramp(t, IN.liftEnd + .1, snatch - IN.liftEnd - .1)) * (1 - easeOut(ramp(t, snatch, .22)));
+    const recoil = -1500 * Math.sin(Math.PI * ramp(t, snatch, .55));
+    st.cloudV = -5200 * Math.pow(ramp(t, IN.lift + .3, 1), 2) * climb + freeFall + recoil + 1100 * smooth(snatch + .35, IN.descend, t);
+    // The can itself bounces up on the lines and settles back (a damped spring, starting with an upward kick).
+    const ks = t - snatch;
+    st.kick = ks > 0 ? 300 * Math.exp(-ks * 3.2) * Math.sin(ks * 9) : 0;
     st.cloud = smooth(IN.lift + .5, IN.lift + 1.1, t) * (1 - smooth(IN.pan + .2, IN.sensors - .2, t));
     st.chute = easeOutBack(ramp(t, IN.deploy, .85));
     st.groundZ = lerp(-8000, GROUND_Z, easeOut(ramp(t, IN.deploy, IN.sensors - IN.deploy)));
@@ -1095,12 +1090,13 @@ if (!renderer) {
     st.overlay = smooth(IN.beams + 1.1, IN.beams + 1.8, t);
     st.labels = smooth(IN.sensors - .6, IN.sensors, t) * (1 - smooth(IN.settle + .9, IN.settle + 1.5, t));
     st.tumble = Math.sin(t * 4.2) * 6 * smooth(IN.lift + .4, IN.liftEnd, t) * (1 - smooth(IN.deploy, IN.deploy + .8, t));
+    st.tumble += ks > 0 ? 7 * Math.exp(-ks * 3) * Math.sin(ks * 11) : 0;   // and rocks with the jolt
     // Camera.
     const az = startAz + 7 * t;
     const studioCam = { target: [0, 0, 60], dist: 350, az, el: 16, drop: 0 };
     let c = { ...studioCam, dist: lerp(350, 430, easeInOut(ramp(t, IN.lift, 1.6))), drop: -L * (1 - catchUp) };
     const wide = { target: [0, 0, 190], dist: 1350, az: az, el: 6, drop: 0 };
-    c = mixCam(c, wide, easeInOut(ramp(t, IN.deploy - .15, 1.35)));
+    c = mixCam(c, wide, easeInOut(ramp(t, IN.deploy - .7, 1.0)));   // wide by the time the lines snatch tight, so the recoil reads
     const under = { target: [-4, 0, 8], dist: 360, az: az + 10, el: -42, drop: 0 };
     c = mixCam(c, under, easeInOut(ramp(t, IN.pan, IN.sensors - IN.pan)));
     const end = { ...SHOTS.sensors, az: endAz };   // keep turning the same way into the final shot
@@ -1123,9 +1119,8 @@ if (!renderer) {
     if (e.origin !== location.origin || !e.data || e.data.runnysat !== 'go' || !waiting) return;
     aimFrom(e.data.az);
     waiting = false; goPending = true; introT = -1;
-    introCap.classList.remove('wait');
   });
-  const AFTER = { studioZ: -1e5, studio: 0, sky: 1, cloudV: 0, cloud: 0, chute: 1, groundZ: GROUND_Z, ground: true, groundA: 1, beams: 1, beamShow: 1, overlay: 1, labels: 0, tumble: 0 };
+  const AFTER = { studioZ: -1e5, studio: 0, sky: 1, cloudV: 0, cloud: 0, chute: 1, groundZ: GROUND_Z, ground: true, groundA: 1, beams: 1, beamShow: 1, overlay: 1, labels: 0, tumble: 0, kick: 0 };
 
   /* ---------- layout: during the opening the scene is centred; then it moves clear of the text column ---------- */
   let side = 0;                         // 0 centred → 1 beside the text
@@ -1153,7 +1148,6 @@ if (!renderer) {
 
   /* ---------- intro control ---------- */
   let introT = playIntro ? -1 : Infinity, ready = false;
-  const introCap = $('introCap'), introStep = $('introStep');
   function finishIntro() {
     if (!root.classList.contains('intro')) return;
     introT = Math.max(introT, IN.end);
@@ -1196,8 +1190,6 @@ if (!renderer) {
       introT = waiting || introT < 0 ? 0 : introT + dt * rate;   // the first frame after loading (or after the hand-over) is a long one: start the clock after it
       st = introAt(introT);
       st.cloudV *= rate;   // a speed, so it scales with the faster clock
-      for (const [t, name] of STEPS) if (introT >= t) introStep.textContent = name;
-      introCap.classList.toggle('wait', introT > IN.end - .6);
       if (introT >= IN.end - .4) finishIntro();
     } else st = { ...AFTER };
 
@@ -1249,6 +1241,7 @@ if (!renderer) {
     // Can and parachute: a gentle swing under the canopy (about the base), and a tumble on the way up.
     const sw = st.chute > .5 ? 1 : 0;
     flight.rotation.set((1.6 * Math.sin(clock * .9) * sw + st.tumble * .4) * rad, (1.2 * Math.sin(clock * .67 + 1) * sw + st.tumble) * rad, 0);
+    flight.position.z = st.kick || 0;
     flight.updateMatrixWorld(true);
     poseChute(st.chute, now);
 
@@ -1288,8 +1281,7 @@ if (!renderer) {
     buildMeshes(model);
     ready = true;
     stage.classList.remove('hidden');
-    if (playIntro && !embedded) { introCap.classList.remove('wait'); }
-    else if (deepLink) requestAnimationFrame(() => { measure(); deepLink.scrollIntoView(); });
+    if (!playIntro && deepLink) requestAnimationFrame(() => { measure(); deepLink.scrollIntoView(); });
   }).catch(() => { $('fallback').textContent = 'Could not load the 3D model.'; $('fallback').style.display = 'flex'; finishIntro(); tellParent('failed'); });
 }
 </script>
