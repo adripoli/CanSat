@@ -498,11 +498,12 @@ const shellFade = t => t < 47.8 ? 1 : t < 62 ? 1 - .8 * easeInOut(ramp(t, 47.8, 
 const CAM = [
   [0, [45, 0, 60], 480, -55, 24], [2.6, [0, 0, 12], 200, -40, 52], [16, [0, 0, 12], 200, 25, 48],
   [17.6, [90, 0, 62], 300, 40, 22], [25.6, [90, 0, 70], 320, 66, 20], [26.6, [90, 0, 100], 410, 70, 18],
-  [30.2, [90, 0, 100], 410, 82, 18],
+  // Keys where the camera changes direction sit on step boundaries, so a step never ends partway into a turn the other way.
+  [30.4, [90, 0, 100], 410, 82, 18],
   // PCB A's parts sit on its -y face: swing round to face them while they land, then stay on that side.
   [31.3, [90, 0, 112], 330, -95, 20], [32.6, [90, 0, 112], 330, -110, 20], [34, [90, 0, 100], 400, -100, 18],
   [35, [90, 0, 125], 280, -65, 24], [40.4, [90, 0, 112], 280, -125, 22],
-  [42.4, [45, 0, 112], 540, 250, 14], [48.4, [45, 0, 128], 570, 262, 16], [52.6, [20, 0, 125], 560, 252, 16],
+  [42.4, [45, 0, 112], 540, 250, 14], [48.8, [45, 0, 128], 570, 262, 16], [52.6, [20, 0, 125], 560, 252, 16],
   [56.2, [0, 0, 95], 450, 240, 18], [62, [0, 0, 92], 430, 265, 14], [70, [0, 0, 70], 380, 345, 18],
 ];
 function camAt(t) {
@@ -584,10 +585,18 @@ const SNAP_RANGE = 0.17;   // fraction of the screen height
 const root = document.documentElement;
 let snapPoints = [], lastScrollAt = 0, touching = false, settle = null;
 const cancelSettle = () => { settle = null; };
-let lastMoveAt = 0;               // last time the page moved at all (user or snap), for the idle turn
-addEventListener('scroll', () => { lastMoveAt = performance.now(); if (!settle) lastScrollAt = lastMoveAt; }, { passive: true });
+// Last time the user scrolled (the snap's own scrolling doesn't count), for the idle turn.
+let lastInputAt = 0, snapDoneAt = -1e9, lastY = scrollY, scrolledUp = false;
+addEventListener('scroll', () => {
+  const now = performance.now(), y = scrollY;
+  if (!settle && now - snapDoneAt > 120) {   // skip the event from the snap's last step
+    lastScrollAt = lastInputAt = now;
+    if (Math.abs(y - lastY) > .5) scrolledUp = y < lastY;
+  }
+  lastY = y;
+}, { passive: true });
 addEventListener('wheel', cancelSettle, { passive: true });
-addEventListener('keydown', cancelSettle);
+addEventListener('keydown', () => { cancelSettle(); lastInputAt = performance.now(); });
 addEventListener('touchstart', () => { touching = true; cancelSettle(); }, { passive: true });
 addEventListener('touchend', () => { touching = false; lastScrollAt = performance.now(); }, { passive: true });
 addEventListener('pointerdown', cancelSettle);
@@ -597,11 +606,12 @@ function softSnap(now) {
     root.style.scrollBehavior = 'auto';          // step the scroll ourselves, frame by frame
     scrollTo(0, settle.from + (settle.to - settle.from) * e);
     root.style.scrollBehavior = '';
-    if (f >= 1) { settle = null; lastScrollAt = Infinity; }
+    if (f >= 1) { settle = null; lastScrollAt = Infinity; snapDoneAt = now; }
     return;
   }
   if (touching || reduceMotion || now - lastScrollAt < 170) return;
   lastScrollAt = Infinity;         // check once per pause
+  if (scrolledUp) return;          // snapping down after scrolling up would replay the build against the way you were going
   const y = scrollY;
   let best = null, range = 0;
   for (const [p, r] of snapPoints) if (p > y + 2 && (best === null || p < best)) { best = p; range = r; }   // only ever snap forwards (down)
@@ -916,8 +926,11 @@ if (!renderer) {
   const HERO_AZ = 330;
   // Idle turn: resting on a build step (not scrolling, not snapping), the can keeps turning slowly.
   // It eases in and out, and unwinds once scrolling resumes so each step's scripted view still lines up.
-  const IDLE_SPEED = 5, IDLE_DELAY = 250;   // deg/s, ms of stillness before it starts
+  // The idle turn carries on in whichever direction the can was visibly turning when you let go,
+  // and it starts straight away: there is no pause between your scroll ending and the turn.
+  const IDLE_SPEED = 5, IDLE_DELAY = 120;   // deg/s; ms without scroll input (bridges the gaps between trackpad events)
   let idleAz = 0, idleVel = 0, idleW = 0, idleDir = 1;
+  let scriptVel = 0, prevScriptAz = NaN, lastDir = 0;   // how fast the scripted/dragged view is turning (deg/s), last visible direction
   // Which way the scripted camera was turning as the build played forward into time t (+1 / -1).
   function azDir(t) {
     for (let b = .3; b <= 8; b += .3) { const d = camAt(t).az - camAt(t - b).az; if (Math.abs(d) > .5) return Math.sign(d); }
@@ -953,9 +966,17 @@ if (!renderer) {
     if (canOrbit !== orbitOn) {
       orbitOn = canOrbit;
       document.body.classList.toggle('orbit', orbitOn);
-      if (!orbitOn) { drag = null; velAz = 0; document.body.classList.remove('grabbing'); userAz = ((userAz % 360) + 540) % 360 - 180; }
+      if (orbitOn) { userAz += idleAz; velAz = idleVel; idleAz = idleVel = 0; }   // hand the idle turn to the orbit so it carries on unbroken
+      else { drag = null; velAz = 0; document.body.classList.remove('grabbing'); userAz = ((userAz % 360) + 540) % 360 - 180; }
     }
-    if (orbitOn && !drag && Math.abs(velAz) > .5) { userAz += velAz * dt; velAz *= Math.exp(-dt * 4); dirty = true; }
+    if (orbitOn && !drag && reduceMotion && Math.abs(velAz) > .5) { userAz += velAz * dt; velAz *= Math.exp(-dt * 4); dirty = true; }
+    if (orbitOn && !drag && !reduceMotion) {
+      // After a fling, coast down to the slow idle turn in the same direction instead of stopping.
+      const dir = lastDir || Math.sign(velAz) || 1;   // the way it's visibly turning (a fling or drag sets this too)
+      velAz += (IDLE_SPEED * dir - velAz) * (1 - Math.exp(-dt * (Math.abs(velAz) > IDLE_SPEED ? 4 : 3)));
+      userAz += velAz * dt;
+      dirty = true;
+    }
     if (!orbitOn && (userAz || userEl)) {
       const r = reduceMotion ? 0 : Math.exp(-dt * 5);
       userAz *= r; userEl *= r;
@@ -963,14 +984,32 @@ if (!renderer) {
       dirty = true;
     }
 
-    const idle = ready && mode === 'build' && !orbitOn && !reduceMotion && !touching && !settle && !drag
-      && now - lastMoveAt > IDLE_DELAY && st.opacity > 0;
-    if (idle && !idleW && Math.abs(idleVel) < .5) idleDir = azDir(shownT);   // pick the direction from a standstill only
+    // How fast the view is turning from the script, the scroll spin and dragging (everything but the idle turn).
+    const scriptAz = mode === 'build' ? camAt(shownT).az + shownSpin + userAz : NaN;
+    const rawVel = Number.isFinite(prevScriptAz) && Number.isFinite(scriptAz) && dt > 0 ? (scriptAz - prevScriptAz) / dt : 0;   // this frame
+    scriptVel = Number.isFinite(scriptAz) ? scriptVel + (rawVel - scriptVel) * (1 - Math.exp(-dt * 12)) : 0;                   // smoothed
+    prevScriptAz = scriptAz;
+    // Idle turn: whenever nothing else is turning the can (you've stopped, or the page is still gliding
+    // through a stretch where nothing moves), it keeps turning slowly the way it was already going.
+    // While the scroll is turning it, the idle offset unwinds, riding along so each step's view still lines up.
+    const live = ready && mode === 'build' && !orbitOn && !reduceMotion && !drag && st.opacity > 0;
+    const scrolling = touching || now - lastInputAt < IDLE_DELAY;
+    const idle = live && (!scrolling || Math.abs(scriptVel) < 1);
+    if (idle && !idleW) idleDir = lastDir || azDir(shownT);   // keep turning the way it already was
     if (!idle && idleW) idleAz = ((idleAz % 360) + 540) % 360 - 180;   // unwind the short way round
     idleW = idle ? 1 : 0;
-    // Ease the turn rate toward its target: a slow steady turn while idle, otherwise a capped glide back to the script.
-    const want = idle ? IDLE_SPEED * idleDir : clamp(-idleAz * 1.5, -60, 60);
-    idleVel += (want - idleVel) * (reduceMotion ? 1 : 1 - Math.exp(-dt * (idle ? 1.2 : 3)));
+    // Idle: top up whatever the script is still doing so the can never turns slower than IDLE_SPEED in that
+    // direction, so the scroll's own motion hands over to the idle turn without a dip. Otherwise: glide back.
+    const want = idle ? idleDir * Math.max(0, IDLE_SPEED - idleDir * scriptVel) : clamp(-idleAz * 1.5, -60, 60);
+    idleVel += (want - idleVel) * (reduceMotion ? 1 : 1 - Math.exp(-dt * (idle ? 12 : 3)));
+    if (live) {
+      // Never let the idle offset turn the can against the scroll's own turn this frame: going the same way
+      // it may add up to as much again; going the other way it may slow it by half at most.
+      const cap = idle && idleVel * idleDir > 0 ? Infinity : idleVel * rawVel > 0 ? Math.abs(rawVel) : .5 * Math.abs(rawVel);
+      idleVel = clamp(idleVel, -cap, cap);
+    }
+    const visVel = rawVel + idleVel;
+    if (Math.abs(visVel) > 1.5) lastDir = Math.sign(visVel);   // the way the can is turning on screen right now
     idleAz += idleVel * dt;
     if (!idle && Math.abs(idleAz) < .02 && Math.abs(idleVel) < .05) idleAz = idleVel = 0;
 
