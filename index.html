@@ -1090,7 +1090,8 @@ if (!renderer) {
   sceneReady = () => ready;
   leaveScene = () => {
     const whole = mode === 'hero' && shownU <= .001 && !intro;
-    leave = { start: performance.now(), dur: whole ? 650 : 1150 };
+    // A long sweeping orbit round the can, carrying on the way it was already turning.
+    leave = { start: performance.now(), dur: whole ? 2100 : 2600, dir: lastDir || 1, sweep: whole ? 250 : 290 };
   };
   resetLeave = () => {
     leave = null;
@@ -1234,6 +1235,11 @@ if (!renderer) {
           rig.updateMatrixWorld(true);
         }
         target = lerp3(target, [0, 0, 60], e); dist += (350 - dist) * e; el += (16 - el) * e;
+        // The sweep: swing a long way round, climbing high and pulling back mid-orbit, then drop into the mission's opening frame.
+        const arc = Math.sin(Math.PI * e);
+        az += leave.dir * leave.sweep * e;
+        el += 42 * arc * arc * (1.4 - e);
+        dist += 170 * arc;
         scale = frameScale + (Math.max(1, (W >= 900 || W >= H ? 1.6 : .95) * H / W) - frameScale) * e;   // same as the mission page's opening frame
         camera.setViewOffset(W, H, -viewOx * (1 - e), viewOy * (1 - e), W, H);
         camera.updateProjectionMatrix();
