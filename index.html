@@ -537,7 +537,7 @@ const railItems = CHAPTERS.map((name, c) => {
 });
 
 /* ================= scroll → animation time ================= */
-let W = innerWidth, H = innerHeight, anchors = [], heroH = H, switchY = 0;
+let W = innerWidth, H = innerHeight, anchors = [], heroH = H, switchY = 0, firstY = 0;
 function measure() {
   heroH = hero.offsetHeight;
   switchY = heroH * 0.62;
@@ -546,6 +546,7 @@ function measure() {
   anchors = steps.map(el => el.getBoundingClientRect().top + scrollY + el.offsetHeight / 2 - H / 2);
   const top = sel => document.querySelector(sel).getBoundingClientRect().top + scrollY;
   const gap = anchors[1] - anchors[0];
+  firstY = anchors[0] - gap * (1 - SWAP);     // where the first card comes in
   // Step anchors pull from as far back as the point where their card takes over, so a step
   // whose card is showing always finishes; the other sections only snap when you stop close by.
   snapPoints = [[0, H * SNAP_RANGE], [top('#build'), H * SNAP_RANGE], ...anchors.map(a => [a, gap * (1 - SWAP) + 2]), [top('#specs'), H * SNAP_RANGE]];
@@ -556,41 +557,50 @@ function measure() {
 const SWAP = 0.5, MOVE_END = 0.92;
 const moveF = f => clamp((f - SWAP) / (MOVE_END - SWAP));
 
-// Deconstruction: between the hero and the first card, the finished can comes apart by playing the
-// build backwards, step by step (each step gets the same share of the scroll), until only the first
-// stage, the sensor base, is left. The first card then picks up from exactly that state.
-const DEC_START = 0.15;            // fraction of the hero's height scrolled before it starts
+// Deconstruction: the moment you start scrolling, the finished can comes apart by playing the build
+// backwards, step by step (each step gets the same share of the time), until only the first stage, the
+// sensor base, is left. It runs on its own clock, so once started it always finishes, even if you stop
+// scrolling; the first card then picks up from exactly that state. Back at the very top, it rebuilds the same way.
+const DEC_ON = 4, DEC_OFF = 1;     // px scrolled to start taking it apart / to put it back together
+const DEC_DUR = 4.5;               // seconds for the whole deconstruction (quicker if you're already past the first card)
+let decP = 0, decGoal = 0;         // progress 0 (finished can) → 1 (sensor base only), and where it's heading
 function decT(u) {                 // u: 0 (finished can) → 1 (sensor base only); returns build time
   const K = stepEnd.slice(0, -1).reverse();
   K[0] = END;
   const x = clamp(u) * (K.length - 1), i = Math.min(K.length - 2, Math.floor(x));
   return K[i] + (K[i + 1] - K[i]) * (x - i);
 }
+function stepDec(y, dt, go) {      // advance the deconstruction clock (go: the model is ready to be watched)
+  if (y > DEC_ON) decGoal = 1; else if (y < DEC_OFF) decGoal = 0;
+  if (!go) return;
+  if (reduceMotion) { decP = decGoal; return; }
+  const rate = (y >= firstY ? 3 : 1) / DEC_DUR, g = decGoal - decP;
+  decP += Math.sign(g) * Math.min(Math.abs(g), rate * dt);
+}
 
-// Scroll position drives the animation directly; the frame loop smooths it.
+// Scroll position drives the build; the frame loop smooths it.
 // t: build time the parts are posed at. c: build time the camera follows. u: how far the view has
-// moved from the hero camera to the build camera (0…1). All three are continuous in y, so nothing jumps.
+// moved from the hero camera to the build camera (0…1). All three change continuously, so nothing jumps.
 function sceneAt(y) {
   const last = anchors.length - 1, gap = anchors[1] - anchors[0];
-  const decA = heroH * DEC_START, s0 = Math.max(decA + 1, anchors[0] - gap * (1 - SWAP));   // s0: where the first card comes in
-  if (y < decA) {                  // hero: the finished can, slowly turning
-    return { mode: 'hero', t: END, c: stepEnd[0], u: 0, opacity: 1, spin: 0, active: -1 };
+  const p = decP, dec = { t: decT(p * p * (3 - 2 * p)), c: stepEnd[0], u: p, opacity: 1, spin: 0 };
+  if (y < firstY) {                // hero → first card: the finished can, or coming apart / back together
+    return { ...dec, mode: p > 0 ? 'dec' : 'hero', active: -1 };
   }
-  if (y < s0) {                    // the can takes itself apart as the camera moves in on the base
-    const u = (y - decA) / (s0 - decA);
-    return { mode: 'dec', t: decT(u), c: stepEnd[0], u, opacity: 1, spin: 0, active: -1 };
-  }
+  let st;
   if (y < anchors[0]) {            // first card: the sensor base, already standing where the deconstruction left it
-    return { mode: 'build', t: stepEnd[0], c: stepEnd[0], u: 1, opacity: 1, spin: 0, active: 0 };
+    st = { mode: 'build', t: stepEnd[0], c: stepEnd[0], u: 1, opacity: 1, spin: 0, active: 0 };
+  } else if (y >= anchors[last]) { // past the last card: turn the finished can as you scroll
+    st = { mode: 'build', t: END, c: END, u: 1, opacity: 1, spin: (y - anchors[last]) / H * 50, active: y - anchors[last] < gap / 2 ? last : -1 };
+  } else {
+    let i = 0;
+    while (i < last - 1 && y >= anchors[i + 1]) i++;
+    const f = (y - anchors[i]) / (anchors[i + 1] - anchors[i]);
+    const t = stepEnd[i] + (stepEnd[i + 1] - stepEnd[i]) * moveF(f);
+    st = { mode: 'build', t, c: t, u: 1, opacity: 1, spin: 0, active: f < SWAP ? i : i + 1 };
   }
-  if (y >= anchors[last]) {        // past the last card: turn the finished can as you scroll
-    return { mode: 'build', t: END, c: END, u: 1, opacity: 1, spin: (y - anchors[last]) / H * 50, active: y - anchors[last] < gap / 2 ? last : -1 };
-  }
-  let i = 0;
-  while (i < last - 1 && y >= anchors[i + 1]) i++;
-  const f = (y - anchors[i]) / (anchors[i + 1] - anchors[i]);
-  const t = stepEnd[i] + (stepEnd[i + 1] - stepEnd[i]) * moveF(f);
-  return { mode: 'build', t, c: t, u: 1, opacity: 1, spin: 0, active: f < SWAP ? i : i + 1 };
+  // Scrolled past the first card before the can finished coming apart: let it finish first, then catch up.
+  return p < 1 ? { ...dec, mode: 'dec', active: st.active } : st;
 }
 
 /* ---------- soft snap: if you stop scrolling close to a step, ease the last bit onto it ---------- */
@@ -973,6 +983,7 @@ if (!renderer) {
     const dt = Math.min(.1, (now - lastNow) / 1000);
     lastNow = now;
     softSnap(now);
+    stepDec(scrollY, dt, ready);
     const y = scrollY, st = sceneAt(y);
     updateUI(y, st);
 
@@ -980,9 +991,11 @@ if (!renderer) {
     const k = reduceMotion ? 1 : 1 - Math.exp(-dt * 6);
     // Follow the scroll smoothly: ease toward it, but never slower than MIN_RATE× real time so the tail finishes.
     // The deconstruction packs the whole build into a short scroll, so the parts may catch up faster there.
-    shownT = follow(shownT, st.t, k, mode === 'dec' || shownU < 1 ? MIN_RATE * 8 : MIN_RATE, dt);
+    // While the can comes apart on its own clock, follow it closely; it is already smooth.
+    const kd = mode === 'dec' ? 1 - Math.exp(-dt * 25) : k;
+    shownT = follow(shownT, st.t, kd, mode === 'dec' || shownU < 1 ? MIN_RATE * 8 : MIN_RATE, dt);
     shownC = follow(shownC, st.c, k, MIN_RATE, dt);
-    shownU = follow(shownU, st.u, k, .15, dt);
+    shownU = follow(shownU, st.u, kd, .15, dt);
     shownSpin += (st.spin - shownSpin) * k;
     if (Math.abs(st.spin - shownSpin) < 1e-3) shownSpin = st.spin;
     if (mode === 'hero' && shownU < 1 && !reduceMotion) heroClock += dt;
