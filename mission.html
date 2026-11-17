@@ -193,6 +193,8 @@
   }
 </style>
 <script type="importmap">{ "imports": { "three": "./assets/three.module.min.js" } }</script>
+<link rel="modulepreload" href="./assets/three.module.min.js">
+<link rel="preload" href="assets/cansat-model.js" as="script">
 </head>
 <body>
 <div id="stage" aria-hidden="true"></div>
@@ -497,37 +499,38 @@ const HEAT_RAMP = [[0, hex(0x1b0c41)], [.3, hex(0x6a176e)], [.55, hex(0xbc3754)]
 const T_MIN = 18, T_MAX = 42;
 const heat = t => rampColor(HEAT_RAMP, (t - T_MIN) / (T_MAX - T_MIN));
 
-// Property grid (S × S), row 0 = top of the canvas = v near 1.
+// Property grid (S × S), row 0 = top of the canvas = v near 1. Filled in once the ground has been painted.
 const P = { ndvi: new Float32Array(S * S), re: new Float32Array(S * S), temp: new Float32Array(S * S), cls: new Uint8Array(S * S), alone: new Uint8Array(S * S) };
 function makeCanvas(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
-function tiled(c) {                    // 2 × 2 copy, so any footprint-sized window can be cut without wrapping
-  const t = makeCanvas(c.width * 2, c.height * 2), x = t.getContext('2d');
+function tile(c, t) {                  // 2 × 2 copy, so any footprint-sized window can be cut without wrapping
+  const x = t.getContext('2d');
   for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) x.drawImage(c, i * c.width, j * c.height);
-  return t;
 }
 const srcN = makeCanvas(S, S), srcT = makeCanvas(S, S), srcF = makeCanvas(S, S);
-{
-  const iN = srcN.getContext('2d').createImageData(S, S), iT = srcT.getContext('2d').createImageData(S, S), iF = srcF.getContext('2d').createImageData(S, S);
+const srcN2 = makeCanvas(2 * S, 2 * S), srcT2 = makeCanvas(2 * S, 2 * S), srcF2 = makeCanvas(2 * S, 2 * S);
+const natural = makeCanvas(NS, NS);   // natural colour
+// The property grid and the three sensor views (NDVI, thermal, fused classes), as plain arrays.
+function paintGrid() {
+  const g = { ndvi: new Float32Array(S * S), re: new Float32Array(S * S), temp: new Float32Array(S * S), cls: new Uint8Array(S * S), alone: new Uint8Array(S * S),
+    iN: new Uint8ClampedArray(4 * S * S), iT: new Uint8ClampedArray(4 * S * S), iF: new Uint8ClampedArray(4 * S * S) };
   for (let j = 0; j < S; j++) for (let i = 0; i < S; i++) {
     const u = (i + .5) / S, v = 1 - (j + .5) / S, k = j * S + i;
     const r = readings(field(u, v), vnoise(u, v, 64, 5) * .6 + hash(i, j) * .4);
-    P.ndvi[k] = r.ndvi; P.re[k] = r.re; P.temp[k] = r.temp;
-    P.cls[k] = classOf(r); P.alone[k] = r.ndvi > .4 ? 1 : 0;
+    g.ndvi[k] = r.ndvi; g.re[k] = r.re; g.temp[k] = r.temp;
+    g.cls[k] = classOf(r); g.alone[k] = r.ndvi > .4 ? 1 : 0;
     const cn = rampColor(NDVI_RAMP, r.ndvi / .85), ct = heat(r.temp);
-    let cf = CLASS[P.cls[k]].rgb;
-    if (P.cls[k] === 3 && (i + j) % 6 < 2) cf = [120, 128, 137];
-    for (const [img, c] of [[iN, cn], [iT, ct], [iF, cf]]) { img.data[4 * k] = c[0]; img.data[4 * k + 1] = c[1]; img.data[4 * k + 2] = c[2]; img.data[4 * k + 3] = 255; }
+    let cf = CLASS[g.cls[k]].rgb;
+    if (g.cls[k] === 3 && (i + j) % 6 < 2) cf = [120, 128, 137];
+    for (const [img, c] of [[g.iN, cn], [g.iT, ct], [g.iF, cf]]) { img[4 * k] = c[0]; img[4 * k + 1] = c[1]; img[4 * k + 2] = c[2]; img[4 * k + 3] = 255; }
   }
-  srcN.getContext('2d').putImageData(iN, 0, 0); srcT.getContext('2d').putImageData(iT, 0, 0); srcF.getContext('2d').putImageData(iF, 0, 0);
+  return g;
 }
-const srcN2 = tiled(srcN), srcT2 = tiled(srcT), srcF2 = tiled(srcF);
-// Natural colour.
-const natural = makeCanvas(NS, NS);
-{
-  const ctx = natural.getContext('2d'), img = ctx.createImageData(NS, NS);
+// Rows j0 … j1 - 1 of the natural-colour texture, as RGBA.
+function paintNatural(j0, j1) {
+  const data = new Uint8ClampedArray(4 * NS * (j1 - j0));
   const HEALTHY = [hex(0x4f7337), hex(0x6f8f50)], DRY = [hex(0x9c946a), hex(0xb5aa80)], BURN = [hex(0x36322f), hex(0x524b45)];
-  for (let j = 0; j < NS; j++) for (let i = 0; i < NS; i++) {
-    const u = (i + .5) / NS, v = 1 - (j + .5) / NS, f = field(u, v), k = 4 * (j * NS + i);
+  for (let j = j0; j < j1; j++) for (let i = 0; i < NS; i++) {
+    const u = (i + .5) / NS, v = 1 - (j + .5) / NS, f = field(u, v), k = 4 * ((j - j0) * NS + i);
     const n1 = vnoise(u, v, 48, 7), n2 = vnoise(u, v, 256, 8), h = hash(i, j);
     const m = clamp(n1 * .55 + n2 * .45 + (h - .5) * .35);
     const mix = (pair, x) => [lerp(pair[0][0], pair[1][0], x), lerp(pair[0][1], pair[1][1], x), lerp(pair[0][2], pair[1][2], x)];
@@ -537,10 +540,51 @@ const natural = makeCanvas(NS, NS);
     let col = [lerp(c[0], g[0], f.veg), lerp(c[1], g[1], f.veg), lerp(c[2], g[2], f.veg)];
     col = [lerp(col[0], b[0], f.burn), lerp(col[1], b[1], f.burn), lerp(col[2], b[2], f.burn)];
     const s = .92 + .16 * h;
-    img.data[k] = col[0] * s; img.data[k + 1] = col[1] * s; img.data[k + 2] = col[2] * s; img.data[k + 3] = 255;
+    data[k] = col[0] * s; data[k + 1] = col[1] * s; data[k + 2] = col[2] * s; data[k + 3] = 255;
   }
-  ctx.putImageData(img, 0, 0);
+  return data;
 }
+// Painting all this is over a million noise samples, which would hold the page (and, during the hand-over, the
+// landing page's animation) up for a second or more. So it runs in background threads, the natural-colour texture
+// split into bands of rows, while the model loads. The workers run these very functions, so the result is the
+// same pixel for pixel; if workers aren't available, it is painted here instead.
+let groundDone = false;
+const groundReady = (() => {
+  const run = job => job.grid ? paintGrid() : paintNatural(job.j0, job.j1);
+  const bands = Math.max(1, Math.min(4, (navigator.hardwareConcurrency || 2) - 1));
+  const jobs = [{ grid: true }];
+  for (let b = 0; b < bands; b++) jobs.push({ j0: Math.round(b * NS / bands), j1: Math.round((b + 1) * NS / bands) });
+  let url = null;
+  try {
+    const consts = { S, NS, TURF, NDVI_RAMP, HEAT_RAMP, T_MIN, T_MAX, CLASS };
+    const fns = { clamp, smooth, lerp, frac, hash, vnoise, fbm, field, readings, classOf, rampColor, hex, heat, paintGrid, paintNatural };
+    const src = Object.entries(consts).map(([k, v]) => `const ${k} = ${JSON.stringify(v)};`)
+      .concat(Object.entries(fns).map(([k, f]) => `const ${k} = ${f};`))
+      .concat(`onmessage = e => { const r = (${run})(e.data); postMessage(r, r.buffer ? [r.buffer] : Object.values(r).map(a => a.buffer)); };`);
+    url = URL.createObjectURL(new Blob([src.join('\n')], { type: 'text/javascript' }));
+  } catch (e) {}
+  const inBackground = job => new Promise(resolve => {
+    let w = null;
+    const here = () => { if (w) w.terminate(); resolve(run(job)); };
+    if (!url) return here();
+    try { w = new Worker(url); } catch (e) { return here(); }
+    w.onmessage = e => { w.terminate(); resolve(e.data); };
+    w.onerror = e => { e.preventDefault(); here(); };
+    w.postMessage(job);
+  });
+  return Promise.all(jobs.map(inBackground)).then(([g, ...rows]) => {
+    if (url) URL.revokeObjectURL(url);
+    for (const k of ['ndvi', 're', 'temp', 'cls', 'alone']) P[k].set(g[k]);
+    for (const [c, c2, data] of [[srcN, srcN2, g.iN], [srcT, srcT2, g.iT], [srcF, srcF2, g.iF]]) {
+      c.getContext('2d').putImageData(new ImageData(data, S, S), 0, 0);
+      tile(c, c2);
+    }
+    const img = new ImageData(NS, NS);
+    rows.forEach((data, b) => img.data.set(data, 4 * NS * jobs[b + 1].j0));
+    natural.getContext('2d').putImageData(img, 0, 0);
+    groundDone = true;
+  });
+})();
 
 /* ================= live readouts ================= */
 const rVeg = $('rVeg'), rNdvi = $('rNdvi'), rRe = $('rRe'), rTemp = $('rTemp'), rAlone = $('rAlone'), rClass = $('rClass'), hudKey = $('hudKey');
@@ -592,10 +636,12 @@ const tAlt = $('tAlt'), tP = $('tP'), tT = $('tT'), tV = $('tV'), tTime = $('tTi
 function telemetry(clock) {
   const T = clock % 104, h = Math.max(0, 1000 - 9.8 * T - .25 * Math.sin(T * 1.7)), v = h > 0 ? 9.8 + .35 * Math.sin(T * .9) : 0;
   const p = 1013.25 * Math.pow(1 - 2.25577e-5 * h, 5.25588), temp = 15 - .0065 * h + .15 * Math.sin(T * .6);
-  tAlt.textContent = h.toFixed(1) + ' m'; tP.textContent = p.toFixed(1) + ' hPa'; tT.textContent = temp.toFixed(1) + ' °C';
-  tV.textContent = v.toFixed(1) + ' m/s'; tTime.textContent = 'T+' + T.toFixed(0).padStart(3, ' ') + ' s';
-  tPkt.textContent = `RUNNYSAT,${String(Math.floor(T)).padStart(3, '0')},${(p * 100).toFixed(0)},${temp.toFixed(2)},${h.toFixed(1)}`;
+  setText(tAlt, h.toFixed(1) + ' m'); setText(tP, p.toFixed(1) + ' hPa'); setText(tT, temp.toFixed(1) + ' °C');
+  setText(tV, v.toFixed(1) + ' m/s'); setText(tTime, 'T+' + T.toFixed(0).padStart(3, ' ') + ' s');
+  setText(tPkt, `RUNNYSAT,${String(Math.floor(T)).padStart(3, '0')},${(p * 100).toFixed(0)},${temp.toFixed(2)},${h.toFixed(1)}`);
 }
+// Write a readout only when its text changes: rewriting identical text every frame still costs a layout.
+function setText(el, s) { if (el._text !== s) el.textContent = el._text = s; }
 
 /* ================= scroll → which section, which shot ================= */
 let W = innerWidth, H = innerHeight, anchors = [];
@@ -634,7 +680,7 @@ if (!renderer) {
   measure();
   addEventListener('resize', () => { W = innerWidth; H = innerHeight; measure(); });
   setMode('fused');
-  const tick = now => { updateUI(scrollY); telemetry(now / 1000); if (now - lastSummary > 1000) { lastSummary = now; summarize({ u0: .1, u1: .4, v0: .4, v1: .6 }, { u: .25, v: .5, r: .05 }); } requestAnimationFrame(tick); };
+  const tick = now => { updateUI(scrollY); telemetry(now / 1000); if (groundDone && now - lastSummary > 1000) { lastSummary = now; summarize({ u0: .1, u1: .4, v0: .4, v1: .6 }, { u: .25, v: .5, r: .05 }); } requestAnimationFrame(tick); };
   requestAnimationFrame(tick);
 } else {
   renderer.setPixelRatio(Math.min(2, devicePixelRatio));
@@ -925,7 +971,7 @@ if (!renderer) {
     flight.add(group);
     return { group, canopy, hem, bridle, lines };
   })();
-  const vA = new THREE.Vector3(), vK = new THREE.Vector3();
+  const vA = new THREE.Vector3(), vK = new THREE.Vector3(), mInv = new THREE.Matrix4();
   function poseChute(open, now) {        // open: 0 packed (hidden) → 1 fully open (may overshoot)
     chute.group.visible = open > .01;
     if (!chute.group.visible) return;
@@ -938,7 +984,7 @@ if (!renderer) {
     const p = chute.lines.geometry.attributes.position;
     let n = 0;
     const seg = (a, b) => { p.setXYZ(n++, a.x, a.y, a.z); p.setXYZ(n++, b.x, b.y, b.z); };
-    const inv = flight.matrixWorld.clone().invert();
+    const inv = mInv.copy(flight.matrixWorld).invert();
     for (const h of chute.hem) seg(K, vA.copy(h).applyMatrix4(c.matrixWorld).applyMatrix4(inv));
     for (const b of chute.bridle) seg(K, b);
     p.needsUpdate = true;
@@ -957,16 +1003,15 @@ if (!renderer) {
     });
   }
   function buildMeshes(model) {
-    const raw = atob(model.bin), buf = new Uint8Array(raw.length);
-    for (let i = 0; i < raw.length; i++) buf[i] = raw.charCodeAt(i);
-    for (const p of model.parts) {
-      const q = new Uint16Array(buf.buffer, p.pos, p.nv * 3), pos = new Float32Array(p.nv * 3);
-      for (let v = 0; v < p.nv; v++) for (let a = 0; a < 3; a++) pos[3 * v + a] = p.min[a] + q[3 * v + a] * p.scale;
-      const idx = p.i32 ? new Uint32Array(buf.buffer, p.idx, p.ni) : new Uint16Array(buf.buffer, p.idx, p.ni);
+    for (const { part: p, pos, index, edges } of model.decode()) {
       const geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-      geo.setIndex(new THREE.BufferAttribute(idx, 1));
+      geo.setIndex(new THREE.BufferAttribute(index, 1));
       geo.computeVertexNormals();
+      // The outline: the part's feature edges (worked out ahead of time), drawn from the part's own vertex buffer.
+      const edgeGeo = new THREE.BufferGeometry();
+      edgeGeo.setAttribute('position', geo.attributes.position);
+      edgeGeo.setIndex(new THREE.BufferAttribute(edges, 1));
       const metal = /^(SCREW|SMA)/.test(p.name);
       const mat = new THREE.MeshStandardMaterial({
         color: new THREE.Color().setRGB(p.color[0], p.color[1], p.color[2], THREE.SRGBColorSpace),
@@ -975,7 +1020,7 @@ if (!renderer) {
       const mesh = new THREE.Mesh(geo, mat);
       mesh.castShadow = mesh.receiveShadow = true;
       const edgeMat = new THREE.LineBasicMaterial({ color: 0x1b2530, transparent: true, opacity: .28 });
-      mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo, 28), edgeMat));
+      mesh.add(new THREE.LineSegments(edgeGeo, edgeMat));
       rig.add(mesh);
       parts.push({ mesh, mat, edgeMat, shell: /^SHELL/.test(p.name), transparent: false });
     }
@@ -1276,9 +1321,27 @@ if (!renderer) {
   }
   requestAnimationFrame(frame);
 
+  // Compile in the background where the browser can (KHR_parallel_shader_compile); elsewhere just compile now.
+  const compileShaders = () => renderer.extensions.has('KHR_parallel_shader_compile')
+    ? renderer.compileAsync(scene, camera) : Promise.resolve(renderer.compile(scene, camera));
+  // Before the first frame: upload the big textures and compile every shader the opening will need, including those of
+  // things that only appear later (clouds, the ground, the sensor overlays) and the see-through versions the shell and
+  // the ground switch to as they fade. Otherwise each would stall the animation the first time it shows up.
+  async function warmUp() {
+    groundTex.needsUpdate = true;       // the ground was painted after the texture was made
+    for (const t of [groundTex, turf.material.map, ...puffs]) renderer.initTexture(t);
+    const fades = [...parts.filter(P => P.shell).map(P => P.mat), ground.material];
+    await compileShaders();
+    for (const m of fades) m.transparent = !m.transparent;
+    try { await compileShaders(); }
+    finally { for (const m of fades) { m.transparent = !m.transparent; m.needsUpdate = true; } }
+  }
+
   setMode('ndvi');
-  loadModel().then(model => {
+  Promise.all([loadModel(), groundReady]).then(([model]) => {
     buildMeshes(model);
+    return warmUp().catch(() => {});
+  }).then(() => {
     ready = true;
     stage.classList.remove('hidden');
     if (!playIntro && deepLink) requestAnimationFrame(() => { measure(); deepLink.scrollIntoView(); });

@@ -181,6 +181,8 @@
   @media (min-width: 900px) { #hero .panel-sm { display:contents; } }
 </style>
 <script type="importmap">{ "imports": { "three": "./assets/three.module.min.js" } }</script>
+<link rel="modulepreload" href="./assets/three.module.min.js">
+<link rel="preload" href="assets/cansat-model.js" as="script">
 </head>
 <body>
 <div id="stage" aria-hidden="true"></div>
@@ -686,7 +688,7 @@ function softSnap(now) {
 }
 
 /* ---------- UI state that follows the scroll (works without WebGL too) ---------- */
-let uiActive = -2, uiRail = -2;
+let uiActive = -2, uiRail = -2, uiOpacity = '', uiTransform = '';
 function updateUI(y, st) {
   nav.classList.toggle('solid', y > 20);
   if (st.active !== uiActive) {
@@ -701,8 +703,10 @@ function updateUI(y, st) {
     railItems.forEach((li, c) => { li.classList.toggle('cur', c === ch); li.classList.toggle('done', c < ch); });
     uiRail = ch;
   }
-  progress.style.opacity = inBuild ? 1 : 0;
-  progress.style.transform = `scaleX(${clamp((y - switchY) / (anchors[last] - switchY))})`;
+  // Only touch the styles when they change, so a page at rest doesn't restyle every frame.
+  const op = inBuild ? '1' : '0', tf = `scaleX(${clamp((y - switchY) / (anchors[last] - switchY))})`;
+  if (op !== uiOpacity) progress.style.opacity = uiOpacity = op;
+  if (tf !== uiTransform) progress.style.transform = uiTransform = tf;
 }
 
 /* ---------- the Mission buttons: the mission opens inside this page, with no page change ----------
@@ -802,9 +806,13 @@ if (!renderer) {
   renderer.setPixelRatio(Math.min(2, devicePixelRatio));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  // The shadow map is only redrawn when something that casts a shadow moves (or the sun does), not when only
+  // the camera turns: the idle turn, the hero turn and dragging reuse the last one.
+  renderer.shadowMap.autoUpdate = false;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.05;
   stage.appendChild(renderer.domElement);
+  let shadowT = NaN;                      // the build time the shadow map was last drawn for (NaN: redraw next frame)
 
   const BG = 0xeef1f4;
   const scene = new THREE.Scene();
@@ -930,7 +938,7 @@ if (!renderer) {
     rig.position.set(0, 0, 0);
     rig.quaternion.identity();
     scene.fog.near = 700 * frameScale; scene.fog.far = 1300 * frameScale;
-    dirty = true;
+    dirty = true; shadowT = NaN;
   }
   const tiltQuat = (q, lean, sway) => {   // tilt by `lean` rad back along the approach and `sway` rad sideways
     vA.copy(intro.back).multiplyScalar(Math.tan(lean)).addScaledVector(intro.side, Math.tan(sway)).add(Z).normalize();
@@ -991,17 +999,16 @@ if (!renderer) {
     });
   }
   function buildMeshes(model) {
-    const raw = atob(model.bin), buf = new Uint8Array(raw.length);
-    for (let i = 0; i < raw.length; i++) buf[i] = raw.charCodeAt(i);
-    for (const p of model.parts) {
-      const q = new Uint16Array(buf.buffer, p.pos, p.nv * 3), pos = new Float32Array(p.nv * 3);
-      for (let v = 0; v < p.nv; v++) for (let a = 0; a < 3; a++) pos[3 * v + a] = p.min[a] + q[3 * v + a] * p.scale;
-      const idx = p.i32 ? new Uint32Array(buf.buffer, p.idx, p.ni) : new Uint16Array(buf.buffer, p.idx, p.ni);
+    for (const { part: p, pos, index, edges } of model.decode()) {
       const geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-      geo.setIndex(new THREE.BufferAttribute(idx, 1));
+      geo.setIndex(new THREE.BufferAttribute(index, 1));
       geo.translate(-p.c[0], -p.c[1], -p.c[2]);
       geo.computeVertexNormals();
+      // The outline: the part's feature edges (worked out ahead of time), drawn from the part's own vertex buffer.
+      const edgeGeo = new THREE.BufferGeometry();
+      edgeGeo.setAttribute('position', geo.attributes.position);
+      edgeGeo.setIndex(new THREE.BufferAttribute(edges, 1));
       const metal = /^(SCREW|SMA)/.test(p.name);
       const mat = new THREE.MeshStandardMaterial({
         color: new THREE.Color().setRGB(p.color[0], p.color[1], p.color[2], THREE.SRGBColorSpace),
@@ -1010,7 +1017,7 @@ if (!renderer) {
       const mesh = new THREE.Mesh(geo, mat);
       mesh.castShadow = mesh.receiveShadow = true;
       const edgeMat = new THREE.LineBasicMaterial({ color: 0x1b2530, transparent: true, opacity: .28 });
-      mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo, 28), edgeMat));
+      mesh.add(new THREE.LineSegments(edgeGeo, edgeMat));
       const pivot = new THREE.Group();
       pivot.add(mesh);
       rig.add(pivot);
@@ -1100,6 +1107,7 @@ if (!renderer) {
     sun.target.position.x = 45;
     Object.assign(sun.shadow.camera, { left: -170, right: 170, top: 170, bottom: -170 });
     sun.shadow.camera.updateProjectionMatrix();
+    shadowT = NaN;
     layout();
   };
   addEventListener('pageshow', e => { if (e.persisted && leave) resetLeave(); });
@@ -1207,7 +1215,10 @@ if (!renderer) {
     const changed = dirty || shownT !== drawn.t || shownC !== drawn.c || shownU !== drawn.u || shownSpin !== drawn.spin || heroClock !== drawn.clock || idleAz !== drawn.idle;
     if (ready && st.opacity > 0 && changed) {
       const eL = leave ? easeInOut(clamp((performance.now() - leave.start) / leave.dur)) : 0;
-      poseParts(leave ? shownT + (END - shownT) * eL : shownT);   // leaving: put the can back together on the way
+      const poseT = leave ? shownT + (END - shownT) * eL : shownT;
+      poseParts(poseT);               // leaving: put the can back together on the way
+      // Parts moved, the can is flying in under its parachute, or the sun is shifting for the hand-over: new shadows.
+      if (poseT !== shadowT || intro || leave) { renderer.shadowMap.needsUpdate = true; shadowT = poseT; }
       const c = camAt(shownC);
       let target = c.target, dist = c.dist, az = c.az + shownSpin + userAz + idleAz, el = c.el + userEl, out = 1;
       if (shownU < 1) {               // hero camera, handing over to the build camera as the can comes apart
@@ -1266,8 +1277,24 @@ if (!renderer) {
   }
   requestAnimationFrame(frame);
 
+  // Compile in the background where the browser can (KHR_parallel_shader_compile); elsewhere just compile now.
+  const compileShaders = () => renderer.extensions.has('KHR_parallel_shader_compile')
+    ? renderer.compileAsync(scene, camera) : Promise.resolve(renderer.compile(scene, camera));
+  // Compile every shader the page will use before the first frame, without holding up the page where the browser
+  // allows it, so nothing stalls later: that includes the see-through versions the parts and the parachute switch
+  // to as they fade, which would otherwise be compiled mid-animation the first time each fade starts.
+  async function warmShaders() {
+    const fades = [...parts.map(P => P.mat), ...chute.mats];
+    await compileShaders();
+    for (const m of fades) m.transparent = !m.transparent;
+    try { await compileShaders(); }
+    finally { for (const m of fades) { m.transparent = !m.transparent; m.needsUpdate = true; } }
+  }
+
   loadModel().then(model => {
     buildMeshes(model);
+    return warmShaders().catch(() => {});
+  }).then(() => {
     if (!reduceMotion && sceneAt(scrollY).mode === 'hero') startIntro(HERO_AZ + heroClock * 7);
     ready = true; dirty = true;
     loading.classList.add('done');
