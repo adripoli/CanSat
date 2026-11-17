@@ -544,9 +544,16 @@ function measure() {
   // (on desktop that centres the card; on phones the cards are pinned under the model).
   anchors = steps.map(el => el.getBoundingClientRect().top + scrollY + el.offsetHeight / 2 - H / 2);
   const top = sel => document.querySelector(sel).getBoundingClientRect().top + scrollY;
-  snapPoints = [0, top('#build'), ...anchors, top('#specs')];
+  const gap = anchors[1] - anchors[0];
+  // Step anchors pull from as far back as the point where their card takes over, so a step
+  // whose card is showing always finishes; the other sections only snap when you stop close by.
+  snapPoints = [[0, H * SNAP_RANGE], [top('#build'), H * SNAP_RANGE], ...anchors.map(a => [a, gap * (1 - SWAP) + 2]), [top('#specs'), H * SNAP_RANGE]];
 }
-const HOLD = 0.8;   // a step's motion finishes 80 % of the way to its card, then holds while it's read
+// Between two cards: the next card takes over at SWAP of the way, and its part moves
+// from there until MOVE_END, so each part plays only while its own card is on screen
+// and has settled by the time that card is centred.
+const SWAP = 0.5, MOVE_END = 0.92;
+const moveF = f => clamp((f - SWAP) / (MOVE_END - SWAP));
 
 // Scroll position drives the animation directly; the frame loop smooths it.
 function sceneAt(y) {
@@ -556,8 +563,12 @@ function sceneAt(y) {
   const opacity = ramp(y, switchY, heroH * 0.3);
   const last = anchors.length - 1, gap = anchors[1] - anchors[0];
   if (y < anchors[0]) {
-    const f = ramp(y, switchY, anchors[0] - switchY);
-    return { mode: 'build', t: 2.2 + (stepEnd[0] - 2.2) * clamp(f / HOLD), opacity, spin: 0, active: y > anchors[0] - gap / 2 ? 0 : -1 };
+    const s0 = anchors[0] - gap * (1 - SWAP);      // where the first card comes in
+    if (y < s0) {                  // camera moves in over the empty build plate
+      return { mode: 'build', t: 2.2 + (stepStart[0] - 2.2) * ramp(y, switchY, s0 - switchY), opacity, spin: 0, active: -1 };
+    }
+    const f = SWAP + (1 - SWAP) * (y - s0) / (anchors[0] - s0);
+    return { mode: 'build', t: stepStart[0] + (stepEnd[0] - stepStart[0]) * moveF(f), opacity, spin: 0, active: 0 };
   }
   if (y >= anchors[last]) {        // past the last card: turn the finished can as you scroll
     return { mode: 'build', t: END, opacity, spin: (y - anchors[last]) / H * 50, active: y - anchors[last] < gap / 2 ? last : -1 };
@@ -565,7 +576,7 @@ function sceneAt(y) {
   let i = 0;
   while (i < last - 1 && y >= anchors[i + 1]) i++;
   const f = (y - anchors[i]) / (anchors[i + 1] - anchors[i]);
-  return { mode: 'build', t: stepEnd[i] + (stepEnd[i + 1] - stepEnd[i]) * clamp(f / HOLD), opacity, spin: 0, active: f < .5 ? i : i + 1 };
+  return { mode: 'build', t: stepEnd[i] + (stepEnd[i + 1] - stepEnd[i]) * moveF(f), opacity, spin: 0, active: f < SWAP ? i : i + 1 };
 }
 
 /* ---------- soft snap: if you stop scrolling close to a step, ease the last bit onto it ---------- */
@@ -592,11 +603,11 @@ function softSnap(now) {
   if (touching || reduceMotion || now - lastScrollAt < 170) return;
   lastScrollAt = Infinity;         // check once per pause
   const y = scrollY;
-  let best = null;
-  for (const p of snapPoints) if (p > y + 2 && (best === null || p < best)) best = p;   // only ever snap forwards (down)
+  let best = null, range = 0;
+  for (const [p, r] of snapPoints) if (p > y + 2 && (best === null || p < best)) { best = p; range = r; }   // only ever snap forwards (down)
   if (best === null) return;
   const d = best - y;
-  if (d < H * SNAP_RANGE) settle = { from: y, to: best, start: now, dur: 260 + Math.abs(d) * 1.2 };
+  if (d < range) settle = { from: y, to: best, start: now, dur: 260 + Math.abs(d) * 1.2 };
 }
 
 /* ---------- UI state that follows the scroll (works without WebGL too) ---------- */
