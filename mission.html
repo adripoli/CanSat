@@ -1,0 +1,1234 @@
+<!DOCTYPE html>
+<html lang="en" class="intro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RunnySat · Mission</title>
+<meta name="description" content="RunnySat's CanSat missions: measure temperature and pressure on the way down, and use three ground-facing sensors to tell healthy vegetation from dry scrub and burned ground.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#eef1f4; --ink:#16202b; --muted:#5d6b78; --line:#d5dbe1; --accent:#e8771e; --accent-ink:#b85a10;
+    --panel:rgba(255,255,255,0.88); --col:min(460px, 38vw); --gutter:48px;
+    --healthy:#3f8f3a; --dry:#c9932a; --burned:#4a3f38; --nope:#9aa3ad;
+    --cam:#3f8f3a; --therm:#e8771e; --spec:#b0306a;
+  }
+  * { box-sizing:border-box; }
+  html { scroll-behavior:smooth; }
+  html.intro { overflow:hidden; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior:auto; } }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:Inter,system-ui,sans-serif; font-size:16px; line-height:1.55;
+         -webkit-font-smoothing:antialiased; }
+  a { color:inherit; }
+  .mono { font-family:'JetBrains Mono',ui-monospace,monospace; }
+
+  /* ---------- 3D stage ---------- */
+  #stage { position:fixed; inset:0; z-index:0; transition:opacity .5s; }
+  #stage canvas { display:block; width:100%; height:100%; }
+  #stage.hidden { opacity:0; }
+  #stage.quick { transition-duration:.2s; }
+  #fallback { position:fixed; inset:0; display:none; align-items:center; justify-content:center; color:var(--muted); font-size:15px; padding:24px; text-align:center; }
+  #labels { position:fixed; inset:0; z-index:2; pointer-events:none; overflow:hidden; }
+  .lbl { position:absolute; left:0; top:0; display:flex; align-items:center; gap:7px; opacity:0; white-space:nowrap; will-change:transform;
+         font-size:12px; font-weight:600; color:var(--ink); }
+  .lbl i { width:9px; height:9px; border-radius:50%; background:var(--c, var(--accent)); box-shadow:0 0 0 3px rgba(255,255,255,.85); flex:none; }
+  .lbl span { background:var(--panel); border:1px solid var(--line); border-radius:999px; padding:3px 10px; backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+              box-shadow:0 4px 14px rgba(20,30,40,.08); }
+  .lbl.left { flex-direction:row-reverse; transform-origin:right center; }
+
+  /* ---------- top bar ---------- */
+  .nav { position:fixed; top:0; left:0; right:0; z-index:10; height:60px; display:flex; align-items:center; gap:28px; padding:0 var(--gutter);
+         background:rgba(238,241,244,0.78); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); border-bottom:1px solid var(--line);
+         transition:opacity .6s, transform .6s; }
+  html.intro .nav { opacity:0; transform:translateY(-8px); pointer-events:none; }
+  .brand { font-weight:700; font-size:16px; letter-spacing:.01em; text-decoration:none; display:flex; align-items:center; gap:10px; }
+  .brand i { width:10px; height:16px; border-radius:3px; background:var(--accent); display:inline-block; }
+  .nav .links { margin-left:auto; display:flex; gap:24px; align-items:center; font-size:14px; }
+  .nav .links a { text-decoration:none; color:var(--muted); }
+  .nav .links a:hover { color:var(--ink); }
+  .nav .links a.pill { color:var(--ink); border:1px solid var(--line); background:#fff; border-radius:999px; padding:6px 14px; }
+  .nav .links a.pill:hover { border-color:#aab4be; }
+  .nav .links a.pill.here { border-color:rgba(232,119,30,.6); box-shadow:inset 0 0 0 1px rgba(232,119,30,.25); }
+  .pill .dot { display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--accent); margin-right:7px; vertical-align:1px; }
+  #progress { position:fixed; top:60px; left:0; height:2px; width:100%; z-index:10; transform-origin:0 50%; transform:scaleX(0); background:var(--accent); }
+
+  /* ---------- intro chrome ---------- */
+  #introCap { position:fixed; z-index:6; left:50%; bottom:34px; transform:translateX(-50%); display:flex; align-items:center; gap:14px;
+              background:var(--panel); border:1px solid var(--line); border-radius:999px; padding:6px 6px 6px 16px; backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+              box-shadow:0 6px 20px rgba(20,30,40,.10); font-size:13px; color:var(--muted); transition:opacity .45s, transform .45s; white-space:nowrap; }
+  #introCap b { color:var(--ink); font-weight:600; font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:.06em; text-transform:uppercase; }
+  #introCap button { font:inherit; font-size:12.5px; border:1px solid var(--line); background:#fff; color:var(--ink); border-radius:999px; padding:5px 12px; cursor:pointer; }
+  #introCap button:hover { border-color:#aab4be; }
+  html:not(.intro) #introCap { opacity:0; transform:translate(-50%, 10px); pointer-events:none; }
+  #introCap.wait { opacity:0; }
+
+  /* ---------- layout ---------- */
+  main { position:relative; z-index:3; transition:opacity .8s .1s; }
+  html.intro main, html.intro #explore, html.intro footer { opacity:0; pointer-events:none; }
+  .eyebrow { font-family:'JetBrains Mono',ui-monospace,monospace; font-size:12.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent-ink); }
+  .col { width:var(--col); margin-left:var(--gutter); }
+  .sec { min-height:100vh; min-height:100svh; display:flex; align-items:center; padding:90px 0 60px; }
+  .panel { background:var(--panel); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); border:1px solid var(--line); border-radius:16px;
+           padding:26px 26px 24px; box-shadow:0 10px 34px rgba(20,30,40,0.10); }
+  .panel h1 { font-size:clamp(44px, 5.6vw, 76px); line-height:.98; letter-spacing:-.035em; margin:12px 0 16px; font-weight:700; }
+  .panel h2 { font-size:clamp(28px, 3.2vw, 40px); line-height:1.08; letter-spacing:-.025em; margin:10px 0 14px; font-weight:700; }
+  .panel h3 { font-size:15px; margin:20px 0 8px; font-weight:650; letter-spacing:-.005em; }
+  .panel p { margin:0 0 12px; font-size:15.5px; color:#2b3946; }
+  .panel p.lead { font-size:18px; line-height:1.5; color:var(--muted); margin-bottom:22px; }
+  .panel p.lead strong { color:var(--ink); font-weight:600; }
+  .panel .small { font-size:13px; color:var(--muted); }
+  .btns { display:flex; gap:10px; flex-wrap:wrap; }
+  .btn { display:inline-flex; align-items:center; gap:8px; font:inherit; font-size:15px; font-weight:600; text-decoration:none; border-radius:10px; padding:11px 18px;
+         border:1px solid var(--line); background:#fff; color:var(--ink); cursor:pointer; transition:border-color .2s, transform .2s; }
+  .btn:hover { border-color:#aab4be; transform:translateY(-1px); }
+  .btn.primary { background:var(--ink); color:#fff; border-color:var(--ink); }
+  .btn.primary:hover { background:#24313f; }
+  .facts { display:flex; gap:22px; flex-wrap:wrap; margin-top:26px; font-size:13px; color:var(--muted); }
+  .facts b { display:block; color:var(--ink); font-size:20px; font-weight:600; letter-spacing:-.01em; font-variant-numeric:tabular-nums; }
+  .stats { display:grid; grid-template-columns:repeat(2, 1fr); gap:10px; margin:16px 0 18px; }
+  .stats.three { grid-template-columns:repeat(3, 1fr); }
+  .stats div { background:#fff; border:1px solid var(--line); border-radius:10px; padding:11px 13px; font-size:12.5px; color:var(--muted); line-height:1.35; }
+  .stats b { display:block; color:var(--ink); font-size:21px; font-weight:650; letter-spacing:-.02em; margin-bottom:2px; font-variant-numeric:tabular-nums; }
+  dl.subs { margin:0; display:grid; grid-template-columns:auto 1fr; gap:6px 16px; font-size:13.5px; line-height:1.45; }
+  dl.subs dt { font-weight:600; }
+  dl.subs dd { margin:0; color:#2b3946; }
+  .tags { display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; }
+  .tags span { font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--muted); background:#fff; border:1px solid var(--line); border-radius:6px; padding:2px 7px; }
+  .formula { margin:14px 0 4px; background:#fff; border:1px solid var(--line); border-radius:10px; padding:12px 14px; }
+  .formula .eq { font-family:'JetBrains Mono',monospace; font-size:14px; color:var(--ink); }
+  .formula .small { margin-top:4px; }
+  .note { border-left:3px solid var(--accent); padding:2px 0 2px 12px; margin:14px 0; font-size:14.5px; color:#2b3946; }
+  .legend { display:flex; flex-wrap:wrap; gap:8px 16px; margin:14px 0 4px; font-size:13.5px; }
+  .legend span { display:inline-flex; align-items:center; gap:8px; }
+  .legend i { width:14px; height:14px; border-radius:4px; background:var(--c); border:1px solid rgba(0,0,0,.12); }
+  .src { font-size:12.5px; color:var(--muted); }
+  .src a { color:var(--muted); }
+
+  /* sensor cards */
+  .sensors { display:grid; gap:8px; margin:16px 0 4px; }
+  .sensor { all:unset; box-sizing:border-box; display:grid; grid-template-columns:auto 1fr; gap:2px 12px; align-items:start; cursor:pointer;
+            background:#fff; border:1px solid var(--line); border-radius:12px; padding:12px 14px; transition:border-color .2s, box-shadow .2s; }
+  .sensor:hover { border-color:#aab4be; }
+  .sensor:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  .sensor.on { border-color:var(--c); box-shadow:0 0 0 3px color-mix(in srgb, var(--c) 18%, transparent); }
+  .sensor i { grid-row:span 2; width:10px; height:10px; margin-top:6px; border-radius:50%; background:var(--c); }
+  .sensor b { font-size:14.5px; font-weight:650; }
+  .sensor span { font-size:13.5px; color:#2b3946; line-height:1.45; }
+
+  /* data path */
+  .flow { list-style:none; margin:16px 0 6px; padding:0; display:grid; gap:0; }
+  .flow li { position:relative; background:#fff; border:1px solid var(--line); border-radius:12px; padding:11px 14px; font-size:13.5px; color:#2b3946; line-height:1.45; }
+  .flow li b { display:block; color:var(--ink); font-size:14.5px; font-weight:650; }
+  .flow li + li { margin-top:30px; }
+  .flow li + li::before { content:attr(data-via); position:absolute; left:22px; top:-27px; height:24px; display:flex; align-items:center; padding-left:16px;
+                          font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--accent-ink); white-space:nowrap; }
+  .flow li + li::after { content:""; position:absolute; left:22px; top:-27px; width:2px; height:24px; background:linear-gradient(var(--line), var(--accent)); }
+  .flow li.side { border-style:dashed; color:var(--muted); }
+
+  .checks { list-style:none; margin:10px 0 4px; padding:0; display:grid; gap:8px; }
+  .checks li { display:grid; grid-template-columns:22px 1fr; gap:8px; font-size:14.5px; color:#2b3946; }
+  .checks li::before { content:"✓"; width:20px; height:20px; border-radius:50%; background:rgba(232,119,30,.14); color:var(--accent-ink); font-size:12px; font-weight:700;
+                       display:flex; align-items:center; justify-content:center; margin-top:1px; }
+
+  /* ---------- live readout ---------- */
+  #hud { position:fixed; z-index:4; right:28px; top:80px; width:290px; background:var(--panel); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+         border:1px solid var(--line); border-radius:14px; padding:14px 16px 13px; box-shadow:0 8px 28px rgba(20,30,40,0.10); font-size:13px;
+         transition:opacity .5s, transform .5s; }
+  html.intro #hud.wait { opacity:0; transform:translateY(-10px); pointer-events:none; }
+  #hud .hd { display:flex; justify-content:space-between; align-items:baseline; gap:10px; margin-bottom:10px; }
+  #hud .hd b { font-family:'JetBrains Mono',monospace; font-size:11.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent-ink); font-weight:500; }
+  #hud .hd span { font-size:11px; color:var(--muted); }
+  #hud .modes { display:grid; grid-template-columns:repeat(4, 1fr); gap:4px; margin-bottom:10px; }
+  #hud .modes button { font:inherit; font-size:11.5px; border:1px solid var(--line); background:#fff; color:var(--muted); border-radius:7px; padding:4px 0; cursor:pointer; }
+  #hud .modes button:hover { color:var(--ink); border-color:#aab4be; }
+  #hud .modes button.on { color:var(--ink); border-color:var(--c); box-shadow:inset 0 -2px 0 var(--c); font-weight:600; }
+  #hud .rows { display:grid; grid-template-columns:1fr auto; gap:5px 12px; margin:0; }
+  #hud dt { color:var(--muted); }
+  #hud dd { margin:0; font-family:'JetBrains Mono',monospace; font-size:12.5px; font-variant-numeric:tabular-nums; text-align:right; color:var(--ink); }
+  #hud .cls { display:flex; align-items:center; gap:8px; justify-content:flex-end; font-family:Inter,system-ui,sans-serif; font-weight:600; font-size:12.5px; }
+  #hud .cls i { width:10px; height:10px; border-radius:3px; background:var(--c, var(--nope)); }
+  #hud .ramp { height:6px; border-radius:3px; margin:10px 0 3px; }
+  #hud .ramp-l { display:flex; justify-content:space-between; font-size:10.5px; color:var(--muted); font-family:'JetBrains Mono',monospace; }
+  #hud .ft { margin-top:10px; padding-top:9px; border-top:1px solid var(--line); font-size:11.5px; color:var(--muted); line-height:1.4; }
+  #hud .pkt { font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--ink); word-break:break-all; }
+  #hud [data-for] { display:none; }
+  #hud.payload [data-for="payload"], #hud.telemetry [data-for="telemetry"] { display:revert; }
+  #hud.payload .modes[data-for="payload"] { display:grid; }
+  #hud.payload .rows[data-for="payload"], #hud.telemetry .rows[data-for="telemetry"] { display:grid; }
+  #hud .bands { display:grid; grid-template-columns:repeat(6, 1fr); gap:4px; align-items:end; height:34px; margin:10px 0 2px; }
+  #hud .bands i { display:block; background:var(--spec); border-radius:2px 2px 0 0; opacity:.85; height:10%; transition:height .5s; }
+  #hud .bands-l { display:grid; grid-template-columns:repeat(6, 1fr); gap:4px; font-size:9.5px; color:var(--muted); font-family:'JetBrains Mono',monospace; text-align:center; }
+
+  /* closing band */
+  #explore { position:relative; z-index:3; background:var(--ink); color:#fff; padding:90px var(--gutter); }
+  #explore .inner { max-width:1100px; display:flex; gap:40px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
+  #explore h2 { font-size:clamp(28px, 3.4vw, 40px); letter-spacing:-.025em; line-height:1.1; margin:10px 0 12px; }
+  #explore p { color:#b8c3cd; margin:0; max-width:34em; font-size:16.5px; }
+  #explore .eyebrow { color:#f3a364; }
+  #explore .btns .btn { background:transparent; border-color:#3a4a5a; color:#fff; }
+  #explore .btns .btn:hover { border-color:#6b7b8b; }
+  #explore .btns .btn.go { background:var(--accent); border-color:var(--accent); color:#1b1206; }
+  #explore .btns .btn.go:hover { background:#f08a36; }
+  footer { position:relative; z-index:3; background:var(--ink); color:#8795a2; border-top:1px solid #2a3846; padding:22px var(--gutter); font-size:13px;
+           display:flex; gap:16px; justify-content:space-between; flex-wrap:wrap; }
+  footer a { color:#c9d2da; }
+
+  /* ---------- small screens: scene on top, text below ---------- */
+  @media (max-width: 899px) {
+    :root { --col:auto; --gutter:16px; }
+    .nav { padding:0 16px; gap:16px; }
+    .nav .links { gap:14px; }
+    .nav .links .hide-sm { display:none; }
+    .col { margin-right:var(--gutter); }
+    .sec { align-items:flex-end; padding:52vh 0 40px; padding:52svh 0 40px; }
+    .panel { background:rgba(255,255,255,0.94); padding:20px 18px; }
+    .panel p.lead { font-size:16.5px; }
+    .stats.three { grid-template-columns:repeat(2, 1fr); }
+    dl.subs { grid-template-columns:1fr; gap:2px; }
+    dl.subs dd { margin-bottom:8px; }
+    #hud { left:12px; right:12px; top:68px; bottom:auto; width:auto; padding:9px 11px; font-size:11.5px; border-radius:12px; }
+    #hud .hd { margin-bottom:6px; }
+    #hud .modes { gap:3px; margin-bottom:6px; }
+    #hud .modes button { font-size:10.5px; padding:3px 6px; }
+    #hud .rows { grid-template-columns:auto 1fr auto 1fr; }
+    #hud dd { white-space:nowrap; }
+    #hud .rows { gap:2px 10px; }
+    #hud dd { font-size:11px; }
+    #hud .rows > :not(.keep) { display:none; }
+    #hud .ft, #hud .bands, #hud .bands-l, #hud .ramp, #hud .ramp-l, #hud .opt { display:none !important; }
+    #introCap { bottom:22px; }
+    #explore { padding:64px 16px; }
+    footer { padding:20px 16px; }
+  }
+</style>
+<script type="importmap">{ "imports": { "three": "./assets/three.module.min.js" } }</script>
+</head>
+<body>
+<div id="stage" aria-hidden="true"></div>
+<div id="fallback">The 3D scene needs WebGL, which isn't available in this browser. The mission is still described below.</div>
+<div id="labels" aria-hidden="true"></div>
+
+<header class="nav" id="nav">
+  <a class="brand" href="index.html"><i></i>RunnySat</a>
+  <nav class="links" aria-label="Sections">
+    <a href="#primary" class="hide-sm">Primary</a>
+    <a href="#secondary" class="hide-sm">Secondary</a>
+    <a href="index.html#build" class="hide-sm">The build</a>
+    <a href="visualizer.html" class="pill">3D visualizer</a>
+    <a href="mission.html" class="pill here" aria-current="page"><span class="dot"></span>Mission</a>
+  </nav>
+</header>
+<div id="progress"></div>
+
+<div id="introCap" class="wait"><b id="introStep">Liftoff</b><button type="button" id="skip">Skip intro</button></div>
+
+<aside id="hud" class="wait payload" aria-label="Live readout (simulated)">
+  <div class="hd"><b id="hudTitle">Payload · 1 s summary</b><span>simulated</span></div>
+  <div class="modes" data-for="payload" role="group" aria-label="Sensor view">
+    <button type="button" data-mode="ndvi" style="--c:var(--cam)">NDVI</button>
+    <button type="button" data-mode="thermal" style="--c:var(--therm)">Thermal</button>
+    <button type="button" data-mode="rededge" style="--c:var(--spec)">Red edge</button>
+    <button type="button" data-mode="fused" style="--c:var(--ink)">Fused</button>
+  </div>
+  <dl class="rows" data-for="payload">
+    <dt class="keep">Vegetation</dt><dd class="keep" id="rVeg">–</dd>
+    <dt>Mean NDVI</dt><dd id="rNdvi">–</dd>
+    <dt>Red-edge strength</dt><dd id="rRe">–</dd>
+    <dt>Plant / ground</dt><dd id="rTemp">–</dd>
+    <dt class="opt">NDVI alone says</dt><dd class="opt" id="rAlone">–</dd>
+    <dt class="keep">Class</dt><dd class="keep"><span class="cls" id="rClass"><i></i><span>–</span></span></dd>
+  </dl>
+  <div data-for="payload" class="opt" id="hudKey"></div>
+  <dl class="rows" data-for="telemetry">
+    <dt class="keep">Altitude</dt><dd class="keep" id="tAlt">–</dd>
+    <dt class="keep">Pressure</dt><dd class="keep" id="tP">–</dd>
+    <dt>Temperature</dt><dd id="tT">–</dd>
+    <dt>Descent rate</dt><dd id="tV">–</dd>
+    <dt>Flight time</dt><dd id="tTime">–</dd>
+  </dl>
+  <div class="ft" data-for="payload">Sent to the XIAO ESP32S3 every second, which adds GPS position and BMP280 altitude and transmits over 433 MHz LoRa.</div>
+  <div class="ft" data-for="telemetry"><span>Example packet, tagged with the team ID</span><br><span class="pkt" id="tPkt">–</span></div>
+</aside>
+
+<main id="top">
+  <section class="sec" id="hero" data-shot="sensors" data-hud="payload">
+    <div class="col"><div class="panel">
+      <div class="eyebrow">CanSat 2025–2026 · Missions</div>
+      <h1>The mission</h1>
+      <p class="lead">Every team measures <strong>air temperature and pressure</strong> on the way down. RunnySat also points <strong>three sensors at the ground</strong> to tell healthy vegetation from dry, fire-prone scrub and burned earth.</p>
+      <div class="btns">
+        <a class="btn primary" href="#primary">Primary mission ↓</a>
+        <a class="btn" href="#secondary">Secondary mission</a>
+      </div>
+      <div class="facts">
+        <div><b>~1,000 m</b>release altitude</div>
+        <div><b>8–12 m/s</b>descent</div>
+        <div><b>≤ 120 s</b>flight</div>
+        <div><b>20 g</b>to survive</div>
+      </div>
+    </div></div>
+  </section>
+
+  <section class="sec" id="primary" data-shot="primary" data-hud="telemetry">
+    <div class="col"><div class="panel">
+      <div class="eyebrow">01 · Primary mission</div>
+      <h2>Measure the air on the way down, then land safely.</h2>
+      <p>The primary mission is the same for every team: measure air temperature and atmospheric pressure after release and during descent, send the data by telemetry to the ground station, and land safely.</p>
+      <div class="stats three">
+        <div><b>~1,000 m</b>release at apogee</div>
+        <div><b>~15 s</b>after liftoff</div>
+        <div><b>4–6</b>CanSats at once</div>
+        <div><b>8–12 m/s</b>recommended descent</div>
+        <div><b>≤ 120 s</b>recommended flight</div>
+        <div><b>20 g</b>to withstand</div>
+      </div>
+      <dl class="subs">
+        <dt>Sensor</dt><dd>BMP280 for temperature and pressure</dd>
+        <dt>Logging</dt><dd>The XIAO ESP32S3 flight computer writes every reading to a microSD card</dd>
+        <dt>Telemetry</dt><dd>433 MHz LoRa, each packet tagged with our team ID</dd>
+        <dt>Descent</dt><dd>Bright ripstop nylon parachute, sized for the recommended speed</dd>
+        <dt>Recovery</dt><dd>GPS module and buzzer</dd>
+      </dl>
+      <div class="formula">
+        <div class="eq">h = 44330 · [1 − (p / p₀)<sup>1/5.255</sup>] m</div>
+        <div class="small">After the flight we calculate altitude from pressure with the barometric formula, then plot altitude against time and temperature against altitude.</div>
+      </div>
+      <p class="src">Source: Bases del Desafío CanSat 2025–2026.</p>
+    </div></div>
+  </section>
+
+  <section class="sec" id="secondary" data-shot="objective" data-hud="payload" data-mode="fused">
+    <div class="col"><div class="panel">
+      <div class="eyebrow">02 · Secondary mission · objective</div>
+      <h2>Healthy, dry, or burned?</h2>
+      <p>Our secondary mission tests whether a low-cost CanSat can tell healthy vegetation from dry, fire-prone scrub and from burned or bare ground during its descent.</p>
+      <div class="stats">
+        <div><b>7,958 ha</b>burned in Asturias in 2025, the highest figure since 2020</div>
+        <div><b>2,304 ha</b>in January–March 2026 alone, mostly scrubland</div>
+      </div>
+      <p>Fire risk depends on how much water live plants hold. The usual greenness index, NDVI, mainly tracks chlorophyll, so a green hillside can still be dry fuel. Any single sensor can also be fooled by shadows, wet soil, paint or artificial turf.</p>
+      <p class="note">So we combine three independent measurements, and classify the ground only when they agree.</p>
+      <div class="legend">
+        <span><i style="--c:var(--healthy)"></i>Healthy vegetation</span>
+        <span><i style="--c:var(--dry)"></i>Stressed / dry scrub</span>
+        <span><i style="--c:var(--burned)"></i>Burned or bare ground</span>
+        <span><i style="--c:var(--nope)"></i>No agreement</span>
+      </div>
+      <p class="src">Fire figures: <a href="https://www.ecoticias.com/medio-ambiente/incendios-forestales-asturias-2026" target="_blank" rel="noopener">ECOticias, 17 Apr 2026</a>.</p>
+    </div></div>
+  </section>
+
+  <section class="sec" id="approach" data-shot="approach" data-hud="payload">
+    <div class="col"><div class="panel">
+      <div class="eyebrow">03 · Secondary mission · three sensors</div>
+      <h2>Three ways of looking at the same ground.</h2>
+      <p>Three downward-facing sensors look through the base of the can. Each one tests something different, so it takes more than a green colour to pass all three.</p>
+      <div class="sensors" role="group" aria-label="Show a sensor's view">
+        <button type="button" class="sensor" data-mode="ndvi" style="--c:var(--cam)"><i></i><b>Pi Camera Module 2 NoIR + blue filter</b><span>An NDVI map from a single camera: near-infrared and blue light at once.</span></button>
+        <button type="button" class="sensor" data-mode="rededge" style="--c:var(--spec)"><i></i><b>SparkFun AS7263 spectrometer</b><span>Six bands from 610 to 860 nm measure the chlorophyll red edge.</span></button>
+        <button type="button" class="sensor" data-mode="thermal" style="--c:var(--therm)"><i></i><b>Pimoroni MLX90640 thermal camera</b><span>32 × 24 px. In sunshine, living plants stay cooler than bare ground through evaporative cooling.</span></button>
+      </div>
+      <p class="small">Click a sensor to see what it sees on the ground.</p>
+    </div></div>
+  </section>
+
+  <section class="sec" id="data" data-shot="data" data-hud="payload">
+    <div class="col"><div class="panel">
+      <div class="eyebrow">04 · Secondary mission · data path</div>
+      <h2>Sort the view, send a summary.</h2>
+      <p>A Raspberry Pi Zero 2 W, on its own switched 5 V supply, combines the three readings and sorts the view into healthy vegetation, stressed vegetation and burned or bare ground.</p>
+      <ol class="flow">
+        <li><b>Three sensors</b>NoIR camera · AS7263 · MLX90640</li>
+        <li data-via="raw readings"><b>Raspberry Pi Zero 2 W</b>Combines and classifies the view</li>
+        <li data-via="1 s summary"><b>XIAO ESP32S3 flight computer</b>Adds GPS position and BMP280 altitude</li>
+        <li data-via="433 MHz LoRa"><b>Ground station</b></li>
+      </ol>
+      <div class="tags"><span>% vegetation</span><span>mean NDVI</span><span>red-edge strength</span><span>plant vs. ground temp</span><span>class</span></div>
+      <p class="small" style="margin-top:14px">Raw images stay on the Pi's microSD card for post-flight analysis, because the radio cannot carry them.</p>
+    </div></div>
+  </section>
+
+  <section class="sec" id="validation" data-shot="sensors2" data-hud="payload" data-mode="fused">
+    <div class="col"><div class="panel">
+      <div class="eyebrow">05 · Secondary mission · validation</div>
+      <h2>Test it on decoys before it flies.</h2>
+      <p>Before launch we will calibrate the camera with a grey card and test the system on five targets. We expect only healthy plants to pass all three tests.</p>
+      <div class="tags"><span>green gorse</span><span>dried gorse</span><span>charred soil</span><span>artificial turf</span><span>green-painted card</span></div>
+      <h3>The mission succeeds if</h3>
+      <ul class="checks">
+        <li>the three-sensor classification gives fewer false positives than NDVI alone, and</li>
+        <li>the flight data show the altitude at which a CanSat-sized probe can still detect these signs.</li>
+      </ul>
+      <p class="note">This is a proof of concept, not a fire-prediction system.</p>
+      <p class="small">In the scene, watch the turf pitch drift under the can: NDVI alone calls it vegetation, but the red edge and thermal tests don't agree.</p>
+    </div></div>
+  </section>
+</main>
+
+<section id="explore">
+  <div class="inner">
+    <div>
+      <div class="eyebrow">The hardware</div>
+      <h2>See what flies.</h2>
+      <p>Every sensor on this page is in the can. Watch all 36 parts go together, or take the model apart yourself.</p>
+    </div>
+    <div class="btns">
+      <a class="btn" href="index.html">← How it's built</a>
+      <a class="btn go" href="visualizer.html">Open the 3D visualizer →</a>
+    </div>
+  </div>
+</section>
+<footer>
+  <span>RunnySat · CanSat missions · technical summary, 17 Nov 2026 · readouts on this page are simulated</span>
+  <a href="#top">Back to top ↑</a>
+</footer>
+
+<script type="module">
+import * as THREE from 'three';
+
+/* ================= helpers ================= */
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const ramp = (t, start, dur) => clamp((t - start) / dur);
+const easeOut = x => 1 - Math.pow(1 - x, 3);
+const easeIn = x => x * x * x;
+const easeInOut = x => x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+const easeOutBack = x => { const c = 1.5; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
+const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a)); return t * t * (3 - 2 * t); };
+const lerp = (a, b, f) => a + (b - a) * f;
+const lerp3 = (a, b, f) => [lerp(a[0], b[0], f), lerp(a[1], b[1], f), lerp(a[2], b[2], f)];
+const frac = x => x - Math.floor(x);
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const $ = id => document.getElementById(id);
+
+/* ================= page state ================= */
+const root = document.documentElement;
+const stage = $('stage'), hud = $('hud'), progress = $('progress'), labelsEl = $('labels');
+const sections = [...document.querySelectorAll('.sec')];
+if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+const deepLink = location.hash && location.hash.length > 1 && document.querySelector(location.hash);
+let fromIndex = null;
+try { fromIndex = JSON.parse(sessionStorage.getItem('runnysat-leave') || 'null'); sessionStorage.removeItem('runnysat-leave'); } catch (e) {}
+if (fromIndex && Date.now() - fromIndex.at > 4000) fromIndex = null;
+const playIntro = !reduceMotion && !deepLink;
+if (!playIntro) root.classList.remove('intro');
+else scrollTo(0, 0);
+stage.classList.add('hidden');      // shown once the model is in (quickly when the landing page handed the can over)
+if (fromIndex && fromIndex.hero) stage.classList.add('quick');
+
+/* ---------- sensor view mode (shared by the HUD chips and the sensor cards) ---------- */
+const MODES = ['ndvi', 'thermal', 'rededge', 'fused'];
+let mode = 'ndvi', modeAt = 0, modePinned = false;
+function setMode(m, pin) {
+  mode = m; modeAt = performance.now();
+  if (pin) modePinned = true;
+  document.querySelectorAll('[data-mode]').forEach(b => { if (b.tagName === 'BUTTON') b.classList.toggle('on', b.dataset.mode === m); });
+  renderKey();
+}
+document.querySelectorAll('button[data-mode]').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode, true)));
+
+/* ================= the ground: one designed tile, repeated =================
+   A flight path runs along the middle row of the tile (v = 0.5). The can drifts along it, so it passes over
+   healthy meadow, dry scrub, a burned patch and an artificial-turf pitch in turn. Away from the path, noise takes over. */
+const TILE = 4000, S = 320, NS = 1024;   // tile size (mm), property grid, natural-colour texture
+function hash(x, y) { let h = (x * 374761393 + y * 668265263) | 0; h = (h ^ (h >>> 13)) * 1274126177 | 0; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; }
+function vnoise(u, v, P, seed) {     // periodic value noise, period P cells over the unit tile
+  const x = u * P, y = v * P, ix = Math.floor(x), iy = Math.floor(y), fx = x - ix, fy = y - iy;
+  const w = (i, j) => hash(((ix + i) % P + P) % P + seed * 1013, ((iy + j) % P + P) % P + seed * 7919);
+  const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
+  return lerp(lerp(w(0, 0), w(1, 0), sx), lerp(w(0, 1), w(1, 1), sx), sy);
+}
+const fbm = (u, v, seed) => (vnoise(u, v, 4, seed) * .5 + vnoise(u, v, 8, seed + 1) * .3 + vnoise(u, v, 16, seed + 2) * .2);
+const TURF = { u0: .76, u1: .8725, v0: .4625, v1: .5375 };   // a 450 × 300 mm pitch on the path
+function field(u, v) {                 // → { veg 0 (dry) … 1 (healthy), burn 0…1, turf 0/1 }
+  const uw = frac(u + .07 * (fbm(u, v, 3) - .5) * 2), d = Math.abs(v - .5);
+  // along the path
+  const band = x => {
+    const e = .025;
+    const healthyA = 1 - smooth(.26 - e, .26 + e, x) + smooth(.66 - e, .66 + e, x);
+    const burnA = smooth(.45 - e, .45 + e, x) * (1 - smooth(.6 - e, .6 + e, x));
+    return { veg: clamp(healthyA), burn: burnA };
+  };
+  const b = band(uw);
+  // away from it
+  const n = fbm(u * 1 + .3, v, 11), nb = fbm(u, v + .2, 21);
+  const far = { veg: smooth(.42, .56, n), burn: smooth(.62, .7, nb) };
+  const w = smooth(.12, .3, d);
+  const veg = lerp(b.veg, far.veg, w), burn = lerp(b.burn, far.burn, w);
+  const turf = u > TURF.u0 && u < TURF.u1 && v > TURF.v0 && v < TURF.v1 ? 1 : 0;
+  return { veg, burn, turf };
+}
+// What each sensor would read for a patch of ground (sunny day).
+function readings(f, jitter) {
+  const j = (jitter - .5);
+  let ndvi = lerp(.36, .74, f.veg) + .04 * j, re = lerp(.28, .84, f.veg) + .05 * j, temp = lerp(30.5, 22.5, f.veg) + 1.2 * j;
+  ndvi = lerp(ndvi, .07, f.burn); re = lerp(re, .05, f.burn); temp = lerp(temp, 39, f.burn);
+  if (f.turf) { ndvi = .52 + .03 * j; re = .1 + .03 * j; temp = 40 + j; }   // plastic: looks green to NDVI, no red edge, hot
+  return { ndvi, re, temp };
+}
+const classOf = r => {               // each sensor votes; 0 burned/bare, 1 stressed, 2 healthy
+  const a = r.ndvi > .5 ? 2 : r.ndvi > .22 ? 1 : 0;
+  const b = r.re > .5 ? 2 : r.re > .16 ? 1 : 0;
+  const c = r.temp < 26.5 ? 2 : r.temp < 34.5 ? 1 : 0;
+  return a === b && b === c ? a : 3;  // 3: they disagree, so no class
+};
+const CLASS = [
+  { name: 'Burned / bare', css: 'var(--burned)', rgb: [74, 63, 56] },
+  { name: 'Stressed', css: 'var(--dry)', rgb: [201, 147, 42] },
+  { name: 'Healthy', css: 'var(--healthy)', rgb: [63, 143, 58] },
+  { name: 'No agreement', css: 'var(--nope)', rgb: [154, 163, 173] },
+];
+function rampColor(stops, x) {
+  x = clamp(x);
+  for (let i = 0; i < stops.length - 1; i++) {
+    const [a, ca] = stops[i], [b, cb] = stops[i + 1];
+    if (x <= b) { const f = (x - a) / (b - a); return [lerp(ca[0], cb[0], f), lerp(ca[1], cb[1], f), lerp(ca[2], cb[2], f)]; }
+  }
+  return stops[stops.length - 1][1];
+}
+const hex = h => [h >> 16 & 255, h >> 8 & 255, h & 255];
+const NDVI_RAMP = [[0, hex(0x7f3b08)], [.25, hex(0xd9a441)], [.45, hex(0xe9e27a)], [.62, hex(0x8cc04a)], [.85, hex(0x1f7a35)]];
+const HEAT_RAMP = [[0, hex(0x1b0c41)], [.3, hex(0x6a176e)], [.55, hex(0xbc3754)], [.78, hex(0xf2741c)], [1, hex(0xfcf3a4)]];
+const T_MIN = 18, T_MAX = 42;
+const heat = t => rampColor(HEAT_RAMP, (t - T_MIN) / (T_MAX - T_MIN));
+
+// Property grid (S × S), row 0 = top of the canvas = v near 1.
+const P = { ndvi: new Float32Array(S * S), re: new Float32Array(S * S), temp: new Float32Array(S * S), cls: new Uint8Array(S * S), alone: new Uint8Array(S * S) };
+function makeCanvas(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
+function tiled(c) {                    // 2 × 2 copy, so any footprint-sized window can be cut without wrapping
+  const t = makeCanvas(c.width * 2, c.height * 2), x = t.getContext('2d');
+  for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) x.drawImage(c, i * c.width, j * c.height);
+  return t;
+}
+const srcN = makeCanvas(S, S), srcT = makeCanvas(S, S), srcF = makeCanvas(S, S);
+{
+  const iN = srcN.getContext('2d').createImageData(S, S), iT = srcT.getContext('2d').createImageData(S, S), iF = srcF.getContext('2d').createImageData(S, S);
+  for (let j = 0; j < S; j++) for (let i = 0; i < S; i++) {
+    const u = (i + .5) / S, v = 1 - (j + .5) / S, k = j * S + i;
+    const r = readings(field(u, v), vnoise(u, v, 64, 5) * .6 + hash(i, j) * .4);
+    P.ndvi[k] = r.ndvi; P.re[k] = r.re; P.temp[k] = r.temp;
+    P.cls[k] = classOf(r); P.alone[k] = r.ndvi > .4 ? 1 : 0;
+    const cn = rampColor(NDVI_RAMP, r.ndvi / .85), ct = heat(r.temp);
+    let cf = CLASS[P.cls[k]].rgb;
+    if (P.cls[k] === 3 && (i + j) % 6 < 2) cf = [120, 128, 137];
+    for (const [img, c] of [[iN, cn], [iT, ct], [iF, cf]]) { img.data[4 * k] = c[0]; img.data[4 * k + 1] = c[1]; img.data[4 * k + 2] = c[2]; img.data[4 * k + 3] = 255; }
+  }
+  srcN.getContext('2d').putImageData(iN, 0, 0); srcT.getContext('2d').putImageData(iT, 0, 0); srcF.getContext('2d').putImageData(iF, 0, 0);
+}
+const srcN2 = tiled(srcN), srcT2 = tiled(srcT), srcF2 = tiled(srcF);
+// Natural colour.
+const natural = makeCanvas(NS, NS);
+{
+  const ctx = natural.getContext('2d'), img = ctx.createImageData(NS, NS);
+  const HEALTHY = [hex(0x4f7337), hex(0x6f8f50)], DRY = [hex(0x9c946a), hex(0xb5aa80)], BURN = [hex(0x36322f), hex(0x524b45)];
+  for (let j = 0; j < NS; j++) for (let i = 0; i < NS; i++) {
+    const u = (i + .5) / NS, v = 1 - (j + .5) / NS, f = field(u, v), k = 4 * (j * NS + i);
+    const n1 = vnoise(u, v, 48, 7), n2 = vnoise(u, v, 256, 8), h = hash(i, j);
+    const m = clamp(n1 * .55 + n2 * .45 + (h - .5) * .35);
+    const mix = (pair, x) => [lerp(pair[0][0], pair[1][0], x), lerp(pair[0][1], pair[1][1], x), lerp(pair[0][2], pair[1][2], x)];
+    let c = mix(DRY, m), g = mix(HEALTHY, m), b = mix(BURN, m);
+    if (h > .93) c = [c[0] * .78, c[1] * .74, c[2] * .66];            // twigs in the scrub
+    if (h > .95) b = [119, 113, 106];                                   // ash
+    let col = [lerp(c[0], g[0], f.veg), lerp(c[1], g[1], f.veg), lerp(c[2], g[2], f.veg)];
+    col = [lerp(col[0], b[0], f.burn), lerp(col[1], b[1], f.burn), lerp(col[2], b[2], f.burn)];
+    const s = .92 + .16 * h;
+    img.data[k] = col[0] * s; img.data[k + 1] = col[1] * s; img.data[k + 2] = col[2] * s; img.data[k + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+/* ================= live readouts ================= */
+const rVeg = $('rVeg'), rNdvi = $('rNdvi'), rRe = $('rRe'), rTemp = $('rTemp'), rAlone = $('rAlone'), rClass = $('rClass'), hudKey = $('hudKey');
+const BANDS = [610, 680, 730, 760, 810, 860];
+function renderKey() {
+  if (mode === 'ndvi') hudKey.innerHTML = `<div class="ramp" style="background:linear-gradient(90deg,${NDVI_RAMP.map(([x, c]) => `rgb(${c}) ${x / .85 * 100}%`).join(',')})"></div><div class="ramp-l"><span>NDVI 0</span><span>0.4</span><span>0.85</span></div>`;
+  else if (mode === 'thermal') hudKey.innerHTML = `<div class="ramp" style="background:linear-gradient(90deg,${HEAT_RAMP.map(([x, c]) => `rgb(${c}) ${x * 100}%`).join(',')})"></div><div class="ramp-l"><span>${T_MIN} °C</span><span>30</span><span>${T_MAX} °C</span></div>`;
+  else if (mode === 'rededge') hudKey.innerHTML = `<div class="bands">${BANDS.map(() => '<i></i>').join('')}</div><div class="bands-l">${BANDS.map(b => `<span>${b}</span>`).join('')}</div>`;
+  else hudKey.innerHTML = `<div class="ramp" style="background:linear-gradient(90deg,var(--healthy) 0 25%,var(--dry) 25% 50%,var(--burned) 50% 75%,var(--nope) 75%)"></div><div class="ramp-l"><span>healthy</span><span>stressed</span><span>bare</span><span>no agreement</span></div>`;
+  lastSummary = 0;
+}
+// Spectrum at the six AS7263 bands for a given red-edge strength (vegetation: low red, a jump into the near-infrared).
+function spectrum(re) { return BANDS.map(b => { const edge = 1 / (1 + Math.exp(-(b - 715) / 18)); return .18 + .1 * (b - 610) / 250 * (1 - re) + edge * re * .8; }); }
+
+let lastSummary = 0;
+function summarize(fp, spot) {         // fp/spot: { u0, u1, v0, v1 } and { u, v, r } in tile coordinates
+  let n = 0, veg = 0, alone = 0, nd = 0, plantT = 0, plantN = 0, groundT = 0, groundN = 0;
+  const counts = [0, 0, 0, 0];
+  const i0 = Math.floor(fp.u0 * S), i1 = Math.ceil(fp.u1 * S), j0 = Math.floor((1 - fp.v1) * S), j1 = Math.ceil((1 - fp.v0) * S);
+  for (let j = j0; j < j1; j++) for (let i = i0; i < i1; i++) {
+    const k = ((j % S) + S) % S * S + ((i % S) + S) % S, c = P.cls[k];
+    n++; counts[c]++; nd += P.ndvi[k]; alone += P.alone[k];
+    if (c === 1 || c === 2) { veg++; plantT += P.temp[k]; plantN++; } else if (c === 0) { groundT += P.temp[k]; groundN++; }
+  }
+  let re = 0, rn = 0;
+  const si0 = Math.floor((spot.u - spot.r) * S), si1 = Math.ceil((spot.u + spot.r) * S), sj0 = Math.floor((1 - spot.v - spot.r) * S), sj1 = Math.ceil((1 - spot.v + spot.r) * S);
+  for (let j = sj0; j < sj1; j++) for (let i = si0; i < si1; i++) {
+    const du = (i + .5) / S - spot.u, dv = (1 - (j + .5) / S) - spot.v;
+    if (du * du + dv * dv > spot.r * spot.r) continue;
+    re += P.re[((j % S) + S) % S * S + ((i % S) + S) % S]; rn++;
+  }
+  re /= Math.max(1, rn);
+  let best = 3;
+  for (const c of [2, 1, 0]) if (counts[c] > counts[best] && counts[c] > n * .3) best = c;
+  if (counts[3] > n * .5) best = 3;
+  rVeg.textContent = Math.round(100 * veg / n) + ' %';
+  rNdvi.textContent = (nd / n).toFixed(2);
+  rRe.textContent = re.toFixed(2);
+  rTemp.textContent = (plantN ? (plantT / plantN).toFixed(1) : '–') + ' / ' + (groundN ? (groundT / groundN).toFixed(1) : '–') + ' °C';
+  rAlone.textContent = Math.round(100 * alone / n) + ' % veg.';
+  rClass.style.setProperty('--c', CLASS[best].css);
+  rClass.lastChild.textContent = CLASS[best].name;
+  const bars = hudKey.querySelectorAll('.bands i');
+  if (bars.length) { const sp = spectrum(re), mx = Math.max(...sp); bars.forEach((b, i) => b.style.height = (sp[i] / mx * 100).toFixed(0) + '%'); }
+  return { re };
+}
+// Primary-mission telemetry: a 1,000 m → 0 descent at ~10 m/s, temperatures from the standard lapse rate.
+const tAlt = $('tAlt'), tP = $('tP'), tT = $('tT'), tV = $('tV'), tTime = $('tTime'), tPkt = $('tPkt');
+function telemetry(clock) {
+  const T = clock % 104, h = Math.max(0, 1000 - 9.8 * T - .25 * Math.sin(T * 1.7)), v = h > 0 ? 9.8 + .35 * Math.sin(T * .9) : 0;
+  const p = 1013.25 * Math.pow(1 - 2.25577e-5 * h, 5.25588), temp = 15 - .0065 * h + .15 * Math.sin(T * .6);
+  tAlt.textContent = h.toFixed(1) + ' m'; tP.textContent = p.toFixed(1) + ' hPa'; tT.textContent = temp.toFixed(1) + ' °C';
+  tV.textContent = v.toFixed(1) + ' m/s'; tTime.textContent = 'T+' + T.toFixed(0).padStart(3, ' ') + ' s';
+  tPkt.textContent = `RUNNYSAT,${String(Math.floor(T)).padStart(3, '0')},${(p * 100).toFixed(0)},${temp.toFixed(2)},${h.toFixed(1)}`;
+}
+
+/* ================= scroll → which section, which shot ================= */
+let W = innerWidth, H = innerHeight, anchors = [];
+function measure() {
+  anchors = sections.map(el => el.getBoundingClientRect().top + scrollY + el.offsetHeight / 2 - H / 2);
+  anchors[0] = 0;
+}
+function sectionAt(y) {               // → { i, f }: between section i and i + 1, f of the way
+  if (y <= anchors[0]) return { i: 0, f: 0 };
+  for (let i = 0; i < anchors.length - 1; i++) if (y < anchors[i + 1]) return { i, f: (y - anchors[i]) / (anchors[i + 1] - anchors[i]) };
+  return { i: anchors.length - 1, f: 0 };
+}
+let curSection = -1;
+function updateUI(y) {
+  const s = sectionAt(y), idx = s.f > .5 ? s.i + 1 : s.i, sec = sections[Math.min(idx, sections.length - 1)];
+  if (idx !== curSection) {
+    curSection = idx;
+    const h = sec.dataset.hud;
+    hud.classList.toggle('payload', h === 'payload'); hud.classList.toggle('telemetry', h === 'telemetry');
+    $('hudTitle').textContent = h === 'telemetry' ? 'Primary · telemetry' : 'Payload · 1 s summary';
+    if (sec.dataset.mode && !modePinned) setMode(sec.dataset.mode);
+    lastSummary = 0;
+  }
+  const end = anchors[anchors.length - 1];
+  progress.style.transform = `scaleX(${clamp(y / end)})`;
+}
+
+/* ================= 3D ================= */
+let renderer = null;
+try { renderer = new THREE.WebGLRenderer({ antialias: true }); } catch (e) { renderer = null; }
+
+if (!renderer) {
+  $('fallback').style.display = 'flex';
+  root.classList.remove('intro');
+  $('hud').classList.remove('wait');
+  measure();
+  addEventListener('resize', () => { W = innerWidth; H = innerHeight; measure(); });
+  setMode('fused');
+  const tick = now => { updateUI(scrollY); telemetry(now / 1000); if (now - lastSummary > 1000) { lastSummary = now; summarize({ u0: .1, u1: .4, v0: .4, v1: .6 }, { u: .25, v: .5, r: .05 }); } requestAnimationFrame(tick); };
+  requestAnimationFrame(tick);
+} else {
+  renderer.setPixelRatio(Math.min(2, devicePixelRatio));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.05;
+  stage.appendChild(renderer.domElement);
+  const maxAniso = renderer.capabilities.getMaxAnisotropy();
+
+  const STUDIO = new THREE.Color(0xeef1f4), HORIZON = new THREE.Color(0xe7edf2), ZENITH = new THREE.Color(0xb9d0e4);
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.Fog(STUDIO.clone(), 700, 1300);
+  const camera = new THREE.PerspectiveCamera(32, W / H, 2, 60000);
+  camera.up.set(0, 0, 1);
+
+  /* ---------- sky dome: the studio's flat grey turning into a sky ---------- */
+  const skyGeo = new THREE.SphereGeometry(30000, 32, 16);
+  skyGeo.rotateX(Math.PI / 2);
+  const skyCol = new Float32Array(skyGeo.attributes.position.count * 3);
+  skyGeo.setAttribute('color', new THREE.BufferAttribute(skyCol, 3));
+  const sky = new THREE.Mesh(skyGeo, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide, fog: false, toneMapped: false, depthWrite: false }));
+  sky.renderOrder = -1;
+  scene.add(sky);
+  let skyDrawn = -1;
+  const cA = new THREE.Color(), cB = new THREE.Color();
+  function paintSky(m) {
+    if (Math.abs(m - skyDrawn) < .002) return;
+    skyDrawn = m;
+    const pos = skyGeo.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const z = pos.getZ(i) / 30000;
+      cA.copy(HORIZON).lerp(ZENITH, Math.pow(clamp(z), .55));
+      if (z < 0) cA.copy(HORIZON).lerp(new THREE.Color(0xdfe6ea), clamp(-z * 3));
+      cB.copy(STUDIO).lerp(cA, m);
+      skyCol[3 * i] = cB.r; skyCol[3 * i + 1] = cB.g; skyCol[3 * i + 2] = cB.b;
+    }
+    skyGeo.attributes.color.needsUpdate = true;
+    scene.fog.color.copy(STUDIO).lerp(HORIZON, m);
+  }
+  paintSky(0);
+
+  /* ---------- lights (as on the landing page) ---------- */
+  const hemi = new THREE.HemisphereLight(0xffffff, 0x9aa3ad, 1.25);
+  const HEMI_STUDIO = new THREE.Color(0x9aa3ad), HEMI_SKY = new THREE.Color(0x8f9c78);
+  scene.add(hemi);
+  const sun = new THREE.DirectionalLight(0xffffff, 2.3);
+  sun.position.set(160, -140, 320);
+  sun.target.position.set(0, 0, 40);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  Object.assign(sun.shadow.camera, { left: -150, right: 150, top: 150, bottom: -150, near: 50, far: 800 });
+  sun.shadow.bias = -4e-4;
+  sun.shadow.normalBias = .6;
+  scene.add(sun, sun.target);
+  const fill = new THREE.DirectionalLight(0xdfe8ff, .7);
+  fill.position.set(-220, 180, 120);
+  scene.add(fill);
+
+  /* ---------- the studio floor the can stands on when the page opens ---------- */
+  const studio = new THREE.Group();
+  const floor = new THREE.Mesh(new THREE.CircleGeometry(420, 96), new THREE.ShadowMaterial({ opacity: .16 }));
+  floor.position.z = -.6; floor.receiveShadow = true;
+  const grid = new THREE.GridHelper(600, 60, 0xc9d0d7, 0xdde2e7);
+  grid.rotation.x = Math.PI / 2; grid.position.z = -.7;
+  grid.material.transparent = true; grid.material.opacity = .55;
+  studio.add(floor, grid);
+  scene.add(studio);
+
+  /* ---------- clouds ---------- */
+  const puff = (() => {
+    const c = makeCanvas(256, 256), x = c.getContext('2d');
+    for (let i = 0; i < 9; i++) {
+      const a = i / 9 * Math.PI * 2, r = i ? 52 : 0, px = 128 + r * Math.cos(a) * 1.25, py = 134 + r * Math.sin(a) * .6, rad = i ? 62 : 86;
+      const g = x.createRadialGradient(px, py, 0, px, py, rad);
+      g.addColorStop(0, 'rgba(255,255,255,.55)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+      x.fillStyle = g; x.fillRect(0, 0, 256, 256);
+    }
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+  })();
+  const clouds = [];
+  for (let i = 0; i < 46; i++) {
+    const mat = new THREE.SpriteMaterial({ map: puff, transparent: true, depthWrite: false, opacity: 0, fog: true });
+    const s = new THREE.Sprite(mat);
+    const a = hash(i, 3) * Math.PI * 2, r = 520 + hash(i, 4) * 2400, sc = 500 + hash(i, 5) * 1300;
+    s.position.set(r * Math.cos(a), r * Math.sin(a), -3000 + hash(i, 6) * 6000);
+    s.scale.set(sc * 1.6, sc, 1);
+    s.userData.o = .55 + .45 * hash(i, 7);
+    scene.add(s); clouds.push(s);
+  }
+
+  /* ---------- the ground far below ---------- */
+  const PLANE = 40000, HALF = PLANE / 2;
+  const groundTex = new THREE.CanvasTexture(natural);
+  groundTex.colorSpace = THREE.SRGBColorSpace;
+  groundTex.wrapS = groundTex.wrapT = THREE.RepeatWrapping;
+  groundTex.repeat.set(PLANE / TILE, PLANE / TILE);
+  groundTex.anisotropy = maxAniso;
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(PLANE, PLANE), new THREE.MeshLambertMaterial({ map: groundTex }));
+  ground.visible = false;
+  scene.add(ground);
+  // The turf pitch is a separate decal, so it appears once near the can instead of on every repeat of the tile.
+  const turfW = (TURF.u1 - TURF.u0) * TILE, turfH = (TURF.v1 - TURF.v0) * TILE;
+  const turf = (() => {
+    const c = makeCanvas(450, 300), x = c.getContext('2d');
+    for (let i = 0; i < 10; i++) { x.fillStyle = i % 2 ? '#3f9c4c' : '#379043'; x.fillRect(i * 45, 0, 45, 300); }
+    x.strokeStyle = '#eef2ee'; x.lineWidth = 4;
+    x.strokeRect(10, 10, 430, 280); x.beginPath(); x.moveTo(225, 10); x.lineTo(225, 290); x.stroke();
+    x.beginPath(); x.arc(225, 150, 40, 0, Math.PI * 2); x.stroke();
+    x.strokeRect(10, 90, 50, 120); x.strokeRect(390, 90, 50, 120);
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = maxAniso;
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(turfW, turfH), new THREE.MeshLambertMaterial({ map: t, transparent: true, depthWrite: false,
+      polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }));
+    m.renderOrder = 1; m.visible = false; scene.add(m);
+    return m;
+  })();
+  const GROUND_Z = -520;               // where the ground sits once the descent shot settles (not to scale)
+  // Map position (tile coordinates, wrapping) under world point (x, y), given the drift.
+  let drift = .02;
+  const mapU = x => (x + HALF) / TILE + drift, mapV = y => (y + HALF) / TILE + .5;
+
+  /* ---------- sensors: aperture, field of view, colour ---------- */
+  const rad = Math.PI / 180;
+  const SENSORS = {
+    ndvi:    { name: 'NoIR camera',   at: [6, -9.5],  fov: [62.2, 48.8], color: 0x3f8f3a, css: 'var(--cam)' },
+    thermal: { name: 'MLX90640',      at: [-19.2, -3], fov: [55, 35],    color: 0xe8771e, css: 'var(--therm)' },
+    rededge: { name: 'AS7263',        at: [.3, 10.3], fov: [40, 40],     color: 0xb0306a, css: 'var(--spec)', round: true },
+  };
+  const beams = new THREE.Group();
+  scene.add(beams);
+  for (const [key, s] of Object.entries(SENSORS)) {
+    const segs = s.round ? 40 : 4;
+    // Faces: a fan from the aperture to the footprint outline. Lines: the outline plus a few edges.
+    const face = new THREE.BufferGeometry();
+    face.setAttribute('position', new THREE.BufferAttribute(new Float32Array(segs * 9), 3));
+    const faceMat = new THREE.MeshBasicMaterial({ color: s.color, transparent: true, opacity: .1, side: THREE.DoubleSide, depthWrite: false, fog: false });
+    const edge = new THREE.BufferGeometry();
+    edge.setAttribute('position', new THREE.BufferAttribute(new Float32Array((segs * 2 + (s.round ? 8 : 8)) * 3), 3));
+    const edgeMat = new THREE.LineBasicMaterial({ color: s.color, transparent: true, opacity: .7, fog: false });
+    const fm = new THREE.Mesh(face, faceMat), em = new THREE.LineSegments(edge, edgeMat);
+    fm.frustumCulled = em.frustumCulled = false;
+    fm.renderOrder = em.renderOrder = 3;
+    beams.add(fm, em);
+    // Glowing ring at the aperture.
+    const ring = new THREE.Mesh(new THREE.RingGeometry(2.2, 4.2, 32), new THREE.MeshBasicMaterial({ color: s.color, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, fog: false }));
+    ring.position.set(s.at[0], s.at[1], -.8);
+    ring.renderOrder = 4;
+    scene.add(ring);
+    Object.assign(s, { face, faceMat, edge, edgeMat, ring, segs });
+  }
+  function outline(s, D) {             // footprint outline at distance D below the aperture, as [x, y] points
+    const pts = [];
+    if (s.round) { const r = D * Math.tan(s.fov[0] / 2 * rad); for (let i = 0; i < s.segs; i++) { const a = i / s.segs * Math.PI * 2; pts.push([s.at[0] + r * Math.cos(a), s.at[1] + r * Math.sin(a)]); } }
+    else { const hx = D * Math.tan(s.fov[0] / 2 * rad), hy = D * Math.tan(s.fov[1] / 2 * rad); for (const [a, b] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) pts.push([s.at[0] + a * hx, s.at[1] + b * hy]); }
+    return pts;
+  }
+  function poseBeams(grow, groundZ, active, show) {
+    const D = Math.max(1, -groundZ * grow), z = -D + (grow >= 1 ? 1.5 : 0);
+    for (const [key, s] of Object.entries(SENSORS)) {
+      const pts = outline(s, D), on = key === active || active === 'fused';
+      const fp = s.face.attributes.position, ep = s.edge.attributes.position;
+      let e = 0;
+      for (let i = 0; i < s.segs; i++) {
+        const a = pts[i], b = pts[(i + 1) % s.segs];
+        fp.setXYZ(3 * i, s.at[0], s.at[1], 0); fp.setXYZ(3 * i + 1, a[0], a[1], z); fp.setXYZ(3 * i + 2, b[0], b[1], z);
+        ep.setXYZ(e++, a[0], a[1], z); ep.setXYZ(e++, b[0], b[1], z);
+      }
+      const nEdges = 4;
+      for (let k = 0; k < nEdges; k++) { const a = pts[Math.floor(k * s.segs / nEdges)]; ep.setXYZ(e++, s.at[0], s.at[1], 0); ep.setXYZ(e++, a[0], a[1], z); }
+      fp.needsUpdate = ep.needsUpdate = true;
+      s.face.computeBoundingSphere();
+      const k = show * (grow > 0 ? 1 : 0);
+      s.faceMat.opacity = k * (on ? .13 : .04);
+      s.edgeMat.opacity = k * (on ? .85 : .3);
+      s.ring.material.opacity = show * (on ? .9 : .45);
+    }
+  }
+
+  /* ---------- what the active sensor sees, drawn on the ground ---------- */
+  function overlayPlane(w, h, tex) {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0, depthWrite: false, fog: true,
+      polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+    m.renderOrder = 2; m.visible = false; scene.add(m); return m;
+  }
+  const camView = makeCanvas(192, 144), camCtx = camView.getContext('2d');
+  const thermView = makeCanvas(32, 24), thermCtx = thermView.getContext('2d');
+  const fusedView = makeCanvas(160, 120), fusedCtx = fusedView.getContext('2d');
+  const tex = c => { const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; };
+  const camTex = tex(camView), thermTex = tex(thermView), fusedTex = tex(fusedView);
+  thermTex.magFilter = THREE.NearestFilter; thermTex.minFilter = THREE.NearestFilter; thermTex.generateMipmaps = false;
+  const ovNdvi = overlayPlane(1, 1, camTex), ovTherm = overlayPlane(1, 1, thermTex), ovFused = overlayPlane(1, 1, fusedTex);
+  // Red-edge spot: a disc tinted by the measured red-edge strength, with a ring.
+  const spot = new THREE.Mesh(new THREE.CircleGeometry(1, 64), new THREE.MeshBasicMaterial({ color: 0xb0306a, transparent: true, opacity: 0, depthWrite: false, fog: true,
+    polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+  spot.renderOrder = 2; scene.add(spot);
+  const spotRing = new THREE.Mesh(new THREE.RingGeometry(.94, 1, 64), new THREE.MeshBasicMaterial({ color: 0xb0306a, transparent: true, opacity: 0, depthWrite: false, fog: true }));
+  spotRing.renderOrder = 2; scene.add(spotRing);
+  let reNow = .5, thermAt = 0, ovShown = { ndvi: 0, thermal: 0, rededge: 0, fused: 0 };
+  function cut(src2, ctx, w, h, u0, u1, v0, v1) {   // copy the tile window [u0,u1] × [v0,v1] into ctx
+    const x0 = frac(u0) * S, y0 = frac(1 - v1) * S;
+    ctx.drawImage(src2, x0, y0, (u1 - u0) * S, (v1 - v0) * S, 0, 0, w, h);
+  }
+  function footprintTile(s, D) {
+    const hx = D * Math.tan(s.fov[0] / 2 * rad), hy = D * Math.tan(s.fov[1] / 2 * rad);
+    return { x: s.at[0], y: s.at[1], hx, hy, u0: mapU(s.at[0] - hx), u1: mapU(s.at[0] + hx), v0: mapV(s.at[1] - hy), v1: mapV(s.at[1] + hy) };
+  }
+  function poseOverlays(now, groundZ, show, dt) {
+    const D = -groundZ, zz = groundZ + .8;
+    for (const m of MODES) ovShown[m] = reduceMotion ? (m === mode ? 1 : 0) : clamp(ovShown[m] + (m === mode ? 1 : -1) * dt * 3);
+    const fc = footprintTile(SENSORS.ndvi, D), ft = footprintTile(SENSORS.thermal, D);
+    const place = (mesh, f, a) => { mesh.visible = a > .001; mesh.position.set(f.x, f.y, zz); mesh.scale.set(2 * f.hx, 2 * f.hy, 1); mesh.material.opacity = a; };
+    place(ovNdvi, fc, show * ovShown.ndvi * .92);
+    place(ovFused, fc, show * ovShown.fused * .9);
+    place(ovTherm, ft, show * ovShown.thermal * .92);
+    if (ovNdvi.visible) { cut(srcN2, camCtx, 192, 144, fc.u0, fc.u1, fc.v0, fc.v1); camTex.needsUpdate = true; }
+    if (ovFused.visible) { cut(srcF2, fusedCtx, 160, 120, fc.u0, fc.u1, fc.v0, fc.v1); fusedTex.needsUpdate = true; }
+    if (ovTherm.visible && now - thermAt > 125) {   // the MLX90640 refreshes a few times a second: pixels stay on the sensor grid
+      thermAt = now; thermCtx.imageSmoothingEnabled = true; cut(srcT2, thermCtx, 32, 24, ft.u0, ft.u1, ft.v0, ft.v1); thermTex.needsUpdate = true;
+    }
+    const sp = SENSORS.rededge, r = D * Math.tan(sp.fov[0] / 2 * rad), a = show * ovShown.rededge;
+    spot.visible = spotRing.visible = a > .001;
+    spot.position.set(sp.at[0], sp.at[1], zz); spot.scale.set(r, r, 1);
+    spotRing.position.set(sp.at[0], sp.at[1], zz + .2); spotRing.scale.set(r, r, 1);
+    spot.material.color.setRGB(...rampColor([[0, hex(0x4a3f38)], [.4, hex(0xc9932a)], [.8, hex(0x3f8f3a)]], reNow).map(v => v / 255), THREE.SRGBColorSpace);
+    spot.material.opacity = a * (.45 + .1 * Math.sin(now / 300));
+    spotRing.material.opacity = a * .95;
+    return { fp: { u0: fc.u0, u1: fc.u1, v0: fc.v0, v1: fc.v1 }, spot: { u: mapU(sp.at[0]), v: mapV(sp.at[1]), r: r / TILE } };
+  }
+
+  /* ---------- the parachute (same canopy as the landing page) ---------- */
+  const CH = { gores: 8, R: 104, lines: 150, hang: 176 };
+  const flight = new THREE.Group();      // can + parachute; sways about the base, where the sensors are
+  scene.add(flight);
+  const rig = new THREE.Group();
+  flight.add(rig);
+  const chute = (() => {
+    const canopy = new THREE.Group(), mats = [], hem = [];
+    const edgeMat = new THREE.LineBasicMaterial({ color: 0x1b2530, transparent: true, opacity: .28 });
+    const span = 2 * Math.PI / CH.gores, cap = Math.PI * .46, vent = .1;
+    for (let g = 0; g < CH.gores; g++) {
+      const geo = new THREE.SphereGeometry(CH.R, 8, 12, g * span, span, vent, cap - vent);
+      geo.rotateX(Math.PI / 2);
+      const pos = geo.attributes.position;
+      for (let v = 0; v < pos.count; v++) {
+        const x = pos.getX(v), y = pos.getY(v), z = pos.getZ(v);
+        const u = (((Math.atan2(y, x) - g * span) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI) / span;
+        const w = Math.sin(Math.PI * clamp(u)), d = clamp(Math.acos(clamp(z / CH.R, -1, 1)) / cap);
+        const k = 1 + .075 * w * d;
+        pos.setXYZ(v, x * k, y * k, z + 9 * w * d * d * d - CH.R * Math.cos(cap));
+      }
+      geo.computeVertexNormals();
+      const mat = new THREE.MeshStandardMaterial({ color: g % 2 ? 0xf4f5f6 : 0xe8771e, roughness: .78, metalness: 0, side: THREE.DoubleSide });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo, 14), edgeMat));
+      canopy.add(mesh);
+      mats.push(mat);
+      const a = g * span, rh = CH.R * Math.sin(cap);
+      hem.push(new THREE.Vector3(rh * Math.cos(a), rh * Math.sin(a), 0));
+    }
+    const bridle = [0, 1, 2, 3].map(i => new THREE.Vector3(27 * Math.cos(i * Math.PI / 2 + Math.PI / 4), 27 * Math.sin(i * Math.PI / 2 + Math.PI / 4), 114.5));
+    const lineGeo = new THREE.BufferGeometry();
+    lineGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array((CH.gores + 4) * 6), 3));
+    const lines = new THREE.LineSegments(lineGeo, new THREE.LineBasicMaterial({ color: 0x1b2530, transparent: true, opacity: .5 }));
+    lines.frustumCulled = false;
+    const group = new THREE.Group();
+    group.add(canopy, lines);
+    flight.add(group);
+    return { group, canopy, hem, bridle, lines };
+  })();
+  const vA = new THREE.Vector3(), vK = new THREE.Vector3();
+  function poseChute(open, now) {        // open: 0 packed (hidden) → 1 fully open (may overshoot)
+    chute.group.visible = open > .01;
+    if (!chute.group.visible) return;
+    const o = Math.max(0, open), K = vK.set(0, 0, 114.5 + (CH.hang - 114.5) * Math.min(1, o));
+    const c = chute.canopy, breathe = 1 + .018 * Math.sin(now / 1000 * 5.2);
+    c.position.set(0, 0, K.z + CH.lines * Math.min(1, o) * .96 + 4);
+    const sx = Math.max(.04, o) * breathe, sz = Math.max(.08, Math.min(1.25, o * 1.1)) * (2 - breathe);
+    c.scale.set(sx, sx, sz);
+    c.updateMatrixWorld(true);
+    const p = chute.lines.geometry.attributes.position;
+    let n = 0;
+    const seg = (a, b) => { p.setXYZ(n++, a.x, a.y, a.z); p.setXYZ(n++, b.x, b.y, b.z); };
+    const inv = flight.matrixWorld.clone().invert();
+    for (const h of chute.hem) seg(K, vA.copy(h).applyMatrix4(c.matrixWorld).applyMatrix4(inv));
+    for (const b of chute.bridle) seg(K, b);
+    p.needsUpdate = true;
+  }
+
+  /* ---------- the model (vertex data shared with the landing page) ---------- */
+  const parts = [];
+  function loadModel() {
+    return new Promise((resolve, reject) => {
+      if (window.CANSAT_MODEL) return resolve(window.CANSAT_MODEL);
+      const s = document.createElement('script');
+      s.src = 'assets/cansat-model.js';
+      s.onload = () => resolve(window.CANSAT_MODEL);
+      s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  }
+  function buildMeshes(model) {
+    const raw = atob(model.bin), buf = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i++) buf[i] = raw.charCodeAt(i);
+    for (const p of model.parts) {
+      const q = new Uint16Array(buf.buffer, p.pos, p.nv * 3), pos = new Float32Array(p.nv * 3);
+      for (let v = 0; v < p.nv; v++) for (let a = 0; a < 3; a++) pos[3 * v + a] = p.min[a] + q[3 * v + a] * p.scale;
+      const idx = p.i32 ? new Uint32Array(buf.buffer, p.idx, p.ni) : new Uint16Array(buf.buffer, p.idx, p.ni);
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      geo.setIndex(new THREE.BufferAttribute(idx, 1));
+      geo.computeVertexNormals();
+      const metal = /^(SCREW|SMA)/.test(p.name);
+      const mat = new THREE.MeshStandardMaterial({
+        color: new THREE.Color().setRGB(p.color[0], p.color[1], p.color[2], THREE.SRGBColorSpace),
+        roughness: metal ? .35 : .62, metalness: metal ? .75 : .02, side: THREE.DoubleSide,
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.castShadow = mesh.receiveShadow = true;
+      const edgeMat = new THREE.LineBasicMaterial({ color: 0x1b2530, transparent: true, opacity: .28 });
+      mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo, 28), edgeMat));
+      rig.add(mesh);
+      parts.push({ mesh, mat, edgeMat, shell: /^SHELL/.test(p.name), transparent: false });
+    }
+  }
+  let shellShown = 1;
+  function poseShell(a) {
+    if (Math.abs(a - shellShown) < 1e-3) return;
+    shellShown = a;
+    for (const P of parts) {
+      if (!P.shell) continue;
+      const tr = a < .999;
+      if (tr !== P.transparent) { P.mat.transparent = tr; P.mat.depthWrite = !tr; P.mat.needsUpdate = true; P.transparent = tr; P.mesh.castShadow = !tr; }
+      P.mat.opacity = a; P.edgeMat.opacity = .28 * (a > .99 ? 1 : a * .4);
+    }
+  }
+
+  /* ---------- labels that follow points in the scene ---------- */
+  const LABELS = [
+    { group: 'sensors', text: 'NoIR camera', at: [6, -9.5, -1], c: 'var(--cam)' },
+    { group: 'sensors', text: 'MLX90640 thermal', at: [-19.2, -3, -1], c: 'var(--therm)' },
+    { group: 'sensors', text: 'AS7263 spectrometer', at: [.3, 10.3, -1], c: 'var(--spec)' },
+    { group: 'data', text: 'Raspberry Pi Zero 2 W', at: [.5, -23, 50], c: 'var(--accent)' },
+    { group: 'data', text: 'XIAO ESP32S3', at: [-10.6, -14, 90], c: 'var(--accent)' },
+    { group: 'data', text: 'BMP280', at: [10.4, -13.5, 62.4], c: 'var(--accent)' },
+    { group: 'data', text: 'LoRa Ra-02', at: [-9.5, -15, 64], c: 'var(--accent)' },
+  ];
+  for (const L of LABELS) {
+    L.el = document.createElement('div');
+    L.el.className = 'lbl';
+    L.el.style.setProperty('--c', L.c);
+    L.el.innerHTML = `<i></i><span>${L.text}</span>`;
+    labelsEl.appendChild(L.el);
+    L.v = new THREE.Vector3();
+    L.shown = 0;
+  }
+  function poseLabels(weights) {
+    const mid = {};
+    for (const L of LABELS) {
+      L.v.set(...L.at).applyMatrix4(rig.matrixWorld).project(camera);
+      L.x = (L.v.x + 1) / 2 * W; L.y = (1 - L.v.y) / 2 * H;
+      const m = mid[L.group] || (mid[L.group] = { x: 0, y: 0, n: 0 });
+      m.x += L.x; m.y += L.y; m.n++;
+    }
+    for (const L of LABELS) {
+      const w = weights[L.group] || 0;
+      if (w < .01 && L.shown < .01) { if (L.el.style.opacity !== '0') L.el.style.opacity = 0; continue; }
+      const m = mid[L.group], mx = m.x / m.n, my = m.y / m.n;
+      // Push each label out from the middle of its group, so neighbours don't sit on top of each other.
+      let left = L.x < mx - 1 || (Math.abs(L.x - mx) <= 1 && L.y < my);
+      if (L.x > W - 200) left = true; else if (L.x < 200) left = false;
+      const dy = clamp((L.y - my) * .8, -18, 18);
+      L.el.classList.toggle('left', left);
+      L.el.style.transform = left ? `translate(${L.x + 5}px, ${L.y - 10 + dy}px) translateX(-100%)` : `translate(${L.x - 5}px, ${L.y - 10 + dy}px)`;
+      L.el.style.opacity = L.v.z > 1 ? 0 : w.toFixed(3);
+      L.shown = w;
+    }
+  }
+
+  /* ---------- camera ---------- */
+  // A camera state: target, distance, azimuth°, elevation°, plus a vertical "drop" of the camera alone (the liftoff tilt).
+  const SHOTS = {
+    sensors:   { target: [0, 0, -120], dist: 1850, az: 300, el: 8 },
+    primary:   { target: [0, 0, 185], dist: 1500, az: 335, el: 5 },
+    objective: { target: [0, 0, -520], dist: 3900, az: 280, el: 40 },
+    approach:  { target: [-4, 0, 2], dist: 300, az: 240, el: -50 },
+    data:      { target: [0, -6, 66], dist: 420, az: 238, el: 12 },
+    sensors2:  { target: [0, 0, -150], dist: 1750, az: 215, el: 10 },
+  };
+  const SHOT_FX = {                     // per shot: shell opacity, which labels show
+    sensors: { shell: 1 }, primary: { shell: 1 }, objective: { shell: 1 }, approach: { shell: 1, labels: 'sensors' }, data: { shell: .12, labels: 'data' }, sensors2: { shell: 1 },
+  };
+  function placeCamera(c, scale) {
+    const d = c.dist * scale, az = c.az * rad, el = c.el * rad;
+    camera.position.set(c.target[0] + d * Math.cos(el) * Math.cos(az), c.target[1] + d * Math.cos(el) * Math.sin(az), c.target[2] + d * Math.sin(el) + (c.drop || 0));
+    camera.lookAt(c.target[0], c.target[1], c.target[2]);
+    return d;
+  }
+  const mixCam = (a, b, f) => ({ target: lerp3(a.target, b.target, f), dist: lerp(a.dist, b.dist, f), az: lerp(a.az, b.az, f), el: lerp(a.el, b.el, f), drop: lerp(a.drop || 0, b.drop || 0, f) });
+
+  /* ---------- the opening: liftoff, apogee, parachute, descent, down to the sensors ---------- */
+  const startAz = fromIndex && fromIndex.hero ? ((fromIndex.az % 360) + 360) % 360 : 330;
+  const IN = { lift: .9, liftEnd: 2.7, deploy: 3.0, descend: 4.2, pan: 5.3, sensors: 6.9, beams: 7.1, settle: 7.5, end: 9.6 };
+  const STEPS = [[0, 'Liftoff'], [IN.deploy, 'Parachute out'], [IN.descend, 'Descent'], [IN.pan, 'Down to the sensors'], [IN.beams, 'Looking at the ground']];
+  function introAt(t) {
+    const st = {};
+    // Liftoff: the can climbs away from the studio floor. The camera stays with the floor at first and tilts up, then races to catch up.
+    const L = 3200 * easeIn(ramp(t, IN.lift, IN.liftEnd - IN.lift));
+    const catchUp = easeInOut(ramp(t, IN.lift + .55, IN.liftEnd - IN.lift - .55));
+    st.studioZ = -L;
+    st.studio = 1 - ramp(t, IN.lift + .6, .9);
+    st.sky = easeInOut(ramp(t, IN.lift + .3, 1.4));
+    // Clouds rush down past the can on the way up, stop at apogee, then drift up slowly as it falls.
+    const climb = t < IN.liftEnd ? 1 : 1 - easeOut(ramp(t, IN.liftEnd, .5));
+    st.cloudV = -5200 * Math.pow(ramp(t, IN.lift + .3, 1), 2) * climb + 260 * smooth(IN.liftEnd, IN.deploy + .4, t);
+    st.cloud = smooth(IN.lift + .5, IN.lift + 1.1, t) * (1 - smooth(IN.descend + .5, IN.pan + .8, t));
+    st.chute = easeOutBack(ramp(t, IN.deploy, .85));
+    st.groundZ = lerp(-8000, GROUND_Z, easeOut(ramp(t, IN.deploy, IN.sensors - IN.deploy)));
+    st.ground = t > IN.deploy;
+    st.beams = easeInOut(ramp(t, IN.beams, 1.4));
+    st.beamShow = smooth(IN.sensors - .5, IN.sensors, t);
+    st.overlay = smooth(IN.beams + 1.1, IN.beams + 1.8, t);
+    st.labels = smooth(IN.sensors - .6, IN.sensors, t) * (1 - smooth(IN.settle + .9, IN.settle + 1.5, t));
+    st.tumble = Math.sin(t * 4.2) * 6 * smooth(IN.lift + .4, IN.liftEnd, t) * (1 - smooth(IN.deploy, IN.deploy + .8, t));
+    // Camera.
+    const az = startAz + 7 * t;
+    const studioCam = { target: [0, 0, 60], dist: 350, az, el: 16, drop: 0 };
+    let c = { ...studioCam, dist: lerp(350, 430, easeInOut(ramp(t, IN.lift, 1.6))), drop: -L * (1 - catchUp) };
+    const wide = { target: [0, 0, 190], dist: 1350, az: az, el: 6, drop: 0 };
+    c = mixCam(c, wide, easeInOut(ramp(t, IN.deploy - .15, 1.35)));
+    const under = { target: [-4, 0, 8], dist: 360, az: az + 10, el: -42, drop: 0 };
+    c = mixCam(c, under, easeInOut(ramp(t, IN.pan, IN.sensors - IN.pan)));
+    const end = { ...SHOTS.sensors, az: endAz };   // keep turning the same way into the final shot
+    c = mixCam(c, end, easeInOut(ramp(t, IN.settle, IN.end - IN.settle - .3)));
+    st.cam = c;
+    return st;
+  }
+  // The hero shot keeps the azimuth the opening ends on, so nothing swings round when the page appears.
+  const endAz = startAz + 7 * IN.settle + 40;
+  SHOTS.sensors.az = endAz % 360;
+  SHOTS.sensors2.az = SHOTS.sensors.az - 95;
+  const AFTER = { studioZ: -1e5, studio: 0, sky: 1, cloudV: 0, cloud: 0, chute: 1, groundZ: GROUND_Z, ground: true, beams: 1, beamShow: 1, overlay: 1, labels: 0, tumble: 0 };
+
+  /* ---------- layout: during the opening the scene is centred; then it moves clear of the text column ---------- */
+  let side = 0;                         // 0 centred → 1 beside the text
+  function frameFor(s) {
+    let ox = 0, oy = 0, availW = W, availH = H, design = 1.6;
+    if (W >= 900) {                     // text column on the left, live readout top right: centre the scene between them
+      const left = Math.min(460, W * .38) + 48 + 24, right = W >= 1180 ? 250 : 40;
+      availW = W - lerp(0, left + Math.min(right, 120), s); ox = lerp(0, (left - right) / 2, s); design = lerp(1.6, 1, s);
+    }
+    else {                              // phones: the scene sits between the readout strip and the text below
+      availH = H * lerp(1, .42, s); const cy = 118 + availH / 2;
+      oy = lerp(0, H / 2 - cy, s); design = lerp(W >= H ? 1.6 : .95, 1.05, s);
+    }
+    return { ox, oy, scale: Math.max(H / availH, design * H / availW, 1) };
+  }
+  function layout() {
+    W = innerWidth; H = innerHeight;
+    renderer.setSize(W, H);
+    camera.aspect = W / H;
+    measure();
+  }
+  layout();
+  addEventListener('resize', layout);
+  if (document.fonts) document.fonts.ready.then(measure);
+
+  /* ---------- intro control ---------- */
+  let introT = playIntro ? -1 : Infinity, ready = false;
+  const introCap = $('introCap'), introStep = $('introStep');
+  function finishIntro() {
+    if (!root.classList.contains('intro')) return;
+    introT = Math.max(introT, IN.end);
+    root.classList.remove('intro');
+    hud.classList.remove('wait');
+    measure();
+  }
+  $('skip').addEventListener('click', () => { introT = Infinity; finishIntro(); });
+  const skipOn = e => { if (root.classList.contains('intro') && ready && introT > .3) { introT = Infinity; finishIntro(); } };
+  addEventListener('wheel', skipOn, { passive: true });
+  addEventListener('touchmove', skipOn, { passive: true });
+  addEventListener('keydown', e => { if ([' ', 'ArrowDown', 'PageDown', 'End', 'Escape'].includes(e.key)) skipOn(e); });
+  if (!playIntro) hud.classList.remove('wait');
+
+  /* ---------- frame loop ---------- */
+  let lastNow = performance.now(), cam = null, side0 = playIntro ? 0 : 1, clock = 0, shotFx = { shell: 1, sensors: 0, data: 0 };
+  const follow = (cur, to, k) => reduceMotion ? to : cur + (to - cur) * k;
+  function sceneTarget(y) {            // the camera shot (and effects) the scroll position asks for
+    const s = sectionAt(y), a = sections[s.i].dataset.shot, b = sections[Math.min(s.i + 1, sections.length - 1)].dataset.shot;
+    const g = smooth(.18, .82, s.f);
+    const A = SHOTS[a], B = SHOTS[b], fa = SHOT_FX[a], fb = SHOT_FX[b];
+    const c = mixCam(A, B, g);
+    // Azimuth: go the short way round.
+    let dAz = ((B.az - A.az) % 360 + 540) % 360 - 180;
+    c.az = A.az + dAz * g;
+    const fx = { shell: lerp(fa.shell, fb.shell, g), sensors: lerp(fa.labels === 'sensors' ? 1 : 0, fb.labels === 'sensors' ? 1 : 0, g), data: lerp(fa.labels === 'data' ? 1 : 0, fb.labels === 'data' ? 1 : 0, g) };
+    return { c, fx };
+  }
+
+  function frame(now) {
+    const dt = Math.min(.1, (now - lastNow) / 1000);
+    lastNow = now;
+    const y = scrollY;
+    updateUI(y);
+    if (!reduceMotion) clock += dt;
+
+    let st;
+    if (ready && introT < IN.end + 1.2) {
+      introT = introT < 0 ? 0 : introT + dt;   // the first frame after loading is a long one: start the clock after it
+      st = introAt(introT);
+      for (const [t, name] of STEPS) if (introT >= t) introStep.textContent = name;
+      introCap.classList.toggle('wait', introT > IN.end - .6);
+      if (introT >= IN.end - .4) finishIntro();
+    } else st = { ...AFTER };
+
+    // The scroll's shot takes over from the opening's last frame.
+    const introDone = !ready || introT >= IN.end;
+    const shot = sceneTarget(y);
+    side0 = follow(side0, root.classList.contains('intro') ? 0 : 1, 1 - Math.exp(-dt * 2.6));
+    side = side0;
+    const k = 1 - Math.exp(-dt * 3.2);
+    if (introDone || !playIntro) {
+      const want = shot.c;
+      want.az += 6 * Math.sin(clock * .11);  // a slow drift so the scene never sits dead still
+      if (!cam) cam = { ...want };
+      // Ease each value toward the shot; azimuth the short way round.
+      const dAz = ((want.az - cam.az) % 360 + 540) % 360 - 180;
+      cam = { target: lerp3(cam.target, want.target, k), dist: follow(cam.dist, want.dist, k), az: cam.az + (reduceMotion ? dAz : dAz * k), el: follow(cam.el, want.el, k), drop: follow(cam.drop || 0, 0, k) };
+      for (const key of ['shell', 'sensors', 'data']) shotFx[key] = follow(shotFx[key], shot.fx[key], k);
+    } else {
+      cam = { ...st.cam };
+    }
+    if (!ready) { requestAnimationFrame(frame); return; }
+
+    // Wind drift: the ground slides slowly under the can along the flight path.
+    if (!reduceMotion) drift += dt * .025;   // ~100 mm/s
+    groundTex.offset.set(frac(drift), .5);
+
+    // Studio, sky, clouds.
+    studio.position.z = st.studioZ;
+    studio.visible = st.studio > .001;
+    floor.material.opacity = .16 * st.studio; grid.material.opacity = .55 * st.studio;
+    paintSky(st.sky);
+    hemi.groundColor.copy(HEMI_STUDIO).lerp(HEMI_SKY, st.sky);
+    for (const c of clouds) {
+      c.position.z += st.cloudV * dt;
+      if (c.position.z < -3200) c.position.z += 6400; else if (c.position.z > 3200) c.position.z -= 6400;
+      c.material.opacity = st.cloud * c.userData.o * clamp(1 - Math.abs(c.position.z) / 3200 * 1.2 + .2);
+      c.visible = c.material.opacity > .003;
+    }
+    ground.visible = st.ground;
+    ground.position.z = st.groundZ;
+    const tx = TILE * (frac((TURF.u0 + TURF.u1) / 2 - drift + .5) - .5);
+    turf.position.set(tx, 0, st.groundZ + .4);
+    turf.material.opacity = 1 - smooth(1100, 1700, Math.abs(tx));
+    turf.visible = st.ground && turf.material.opacity > .01;
+
+    // Can and parachute: a gentle swing under the canopy (about the base), and a tumble on the way up.
+    const sw = st.chute > .5 ? 1 : 0;
+    flight.rotation.set((1.6 * Math.sin(clock * .9) * sw + st.tumble * .4) * rad, (1.2 * Math.sin(clock * .67 + 1) * sw + st.tumble) * rad, 0);
+    flight.updateMatrixWorld(true);
+    poseChute(st.chute, now);
+
+    // Sensor beams and what they see.
+    const autoCycle = !modePinned && introDone && !sections[Math.max(0, curSection)].dataset.mode;
+    if (autoCycle && now - modeAt > 4200) setMode(MODES[(MODES.indexOf(mode) + 1) % 3]);   // cycle the three sensors; "fused" is shown where a section asks for it
+    poseBeams(st.beams, st.groundZ, mode, st.beamShow);
+    beams.visible = st.beamShow > .001;
+    const ov = poseOverlays(now, st.groundZ, st.overlay, dt);
+    if (st.overlay > .5 && now - lastSummary > 1000) { lastSummary = now; reNow = summarize(ov.fp, ov.spot).re; }
+    telemetry(clock);
+
+    poseShell(introDone ? shotFx.shell : 1);
+
+    // Camera framing (moves clear of the text column once the page content appears).
+    const fr = frameFor(side);
+    camera.setViewOffset(W, H, -fr.ox, fr.oy, W, H);
+    camera.updateProjectionMatrix();
+    const d = placeCamera(cam, fr.scale);
+    sky.position.copy(camera.position);
+    const fogNear = d * .85;
+    scene.fog.near = fogNear * (st.sky > .5 ? 1 : 2) + (1 - st.sky) * 400;
+    scene.fog.far = st.sky > .5 ? fogNear + 2600 + d * 1.6 : 1300 * fr.scale + 2000;
+
+    renderer.render(scene, camera);
+    poseLabels({ sensors: Math.max(introDone ? 0 : st.labels, introDone ? shotFx.sensors : 0), data: introDone ? shotFx.data : 0 });
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  setMode('ndvi');
+  loadModel().then(model => {
+    buildMeshes(model);
+    ready = true;
+    stage.classList.remove('hidden');
+    if (playIntro) { introCap.classList.remove('wait'); }
+    else if (deepLink) requestAnimationFrame(() => { measure(); deepLink.scrollIntoView(); });
+  }).catch(() => { $('fallback').textContent = 'Could not load the 3D model.'; $('fallback').style.display = 'flex'; finishIntro(); });
+}
+</script>
+</body>
+</html>

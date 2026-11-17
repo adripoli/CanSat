@@ -45,6 +45,13 @@
   .nav .links a:hover { color:var(--ink); }
   .nav .links a.pill { color:var(--ink); border:1px solid var(--line); background:#fff; border-radius:999px; padding:6px 14px; }
   .nav .links a.pill:hover { border-color:#aab4be; }
+  .nav .links a.pill.mission { border-color:rgba(232,119,30,.6); }
+  .nav .links a.pill.mission:hover { border-color:var(--accent); }
+  .pill .dot { display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--accent); margin-right:7px; vertical-align:1px; }
+  /* leaving for the mission page: the text fades and the can moves to the middle, where the mission page picks it up */
+  body.leaving main, body.leaving .nav, body.leaving #rail, body.leaving #progress, body.leaving #orbitHint, body.leaving #loading,
+  body.leaving #explore, body.leaving footer { opacity:0 !important; pointer-events:none; transition:opacity .4s; }
+  body.leaving-all #stage { opacity:0; transition:opacity .35s; }
   #progress { position:fixed; top:60px; left:0; height:2px; width:100%; z-index:10; transform-origin:0 50%; transform:scaleX(0); background:var(--accent); opacity:0; transition:opacity .3s; }
 
   /* ---------- chapter rail ---------- */
@@ -133,6 +140,8 @@
   #explore .eyebrow { color:#f3a364; }
   #explore .btn { background:var(--accent); border-color:var(--accent); color:#1b1206; }
   #explore .btn:hover { background:#f08a36; }
+  #explore .btn.alt { background:transparent; border-color:#3a4a5a; color:#fff; }
+  #explore .btn.alt:hover { border-color:#6b7b8b; background:transparent; }
   footer { position:relative; z-index:1; background:var(--ink); color:#8795a2; border-top:1px solid #2a3846; padding:22px var(--gutter); font-size:13px;
            display:flex; gap:16px; justify-content:space-between; flex-wrap:wrap; }
   footer a { color:#c9d2da; }
@@ -179,6 +188,7 @@
     <a href="#build" class="hide-sm">The build</a>
     <a href="#specs">Specs</a>
     <a href="visualizer.html" class="pill">3D visualizer</a>
+    <a href="mission.html" class="pill mission" data-leave><span class="dot"></span>Mission</a>
   </nav>
 </header>
 <div id="progress"></div>
@@ -196,6 +206,7 @@
         <div class="btns">
           <a class="btn primary" href="#build">See how it's built ↓</a>
           <a class="btn" href="visualizer.html">Open the 3D visualizer</a>
+          <a class="btn" href="mission.html" data-leave>The mission →</a>
         </div>
         <div class="facts">
           <div><b>Ø66 mm</b>diameter</div>
@@ -403,7 +414,10 @@
       <h2>Take it apart yourself.</h2>
       <p>The full visualizer plays the 70-second build with a timeline, chapter jumps, speed control and a free camera you can orbit and zoom.</p>
     </div>
-    <a class="btn" href="visualizer.html">Open the 3D visualizer →</a>
+    <div class="btns">
+      <a class="btn" href="visualizer.html">Open the 3D visualizer →</a>
+      <a class="btn alt" href="mission.html" data-leave>The mission →</a>
+    </div>
   </div>
 </section>
 <footer>
@@ -663,6 +677,20 @@ function updateUI(y, st) {
   progress.style.transform = `scaleX(${clamp((y - switchY) / (anchors[last] - switchY))})`;
 }
 
+/* ---------- the Mission buttons: hand the can over to the mission page ---------- */
+let leaveHero = null;                // set by the 3D scene: starts the hand-over animation, or returns false
+function rememberLeave(info) { try { sessionStorage.setItem('runnysat-leave', JSON.stringify({ ...info, at: Date.now() })); } catch (e) {} }
+document.querySelectorAll('a[data-leave]').forEach(a => a.addEventListener('click', e => {
+  if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+  e.preventDefault();
+  if (document.body.classList.contains('leaving')) return;
+  document.body.classList.add('leaving');
+  if (leaveHero && leaveHero(a.href)) return;   // the frame loop navigates when the can is centred
+  document.body.classList.add('leaving-all');
+  setTimeout(() => { rememberLeave({ hero: false }); location.href = a.href; }, reduceMotion ? 0 : 380);
+}));
+addEventListener('pageshow', e => { if (e.persisted) document.body.classList.remove('leaving', 'leaving-all'); });
+
 /* ================= 3D scene ================= */
 let renderer;
 try {
@@ -718,7 +746,7 @@ if (!renderer) {
   scene.add(grid);
 
   /* ---------- layout: keep the model clear of the text column ---------- */
-  let frameScale = 1, dirty = true;
+  let frameScale = 1, dirty = true, viewOx = 0, viewOy = 0;
   function layout() {
     W = innerWidth; H = innerHeight;
     renderer.setSize(W, H);
@@ -735,6 +763,7 @@ if (!renderer) {
     camera.aspect = W / H;
     camera.setViewOffset(W, H, -ox, oy, W, H);
     camera.updateProjectionMatrix();
+    viewOx = ox; viewOy = oy;
     frameScale = Math.max(H / availH, design * H / availW, 1);
     scene.fog.near = 700 * frameScale;
     scene.fog.far = 1300 * frameScale;
@@ -745,8 +774,8 @@ if (!renderer) {
   addEventListener('resize', layout);
   if (document.fonts) document.fonts.ready.then(() => { measure(); dirty = true; });
 
-  function placeCamera(target, dist, azDeg, elDeg) {
-    const d = dist * frameScale, az = azDeg * Math.PI / 180, el = elDeg * Math.PI / 180;
+  function placeCamera(target, dist, azDeg, elDeg, scale = frameScale) {
+    const d = dist * scale, az = azDeg * Math.PI / 180, el = elDeg * Math.PI / 180;
     camera.position.set(target[0] + d * Math.cos(el) * Math.cos(az), target[1] + d * Math.cos(el) * Math.sin(az), target[2] + d * Math.sin(el));
     camera.lookAt(target[0], target[1], target[2]);
   }
@@ -962,6 +991,15 @@ if (!renderer) {
   let ready = false, mode = '', shownT = END, shownC = stepEnd[0], shownU = 0, shownSpin = 0, heroClock = 0, lastNow = performance.now();
   let drawn = { t: NaN, c: NaN, u: NaN, spin: NaN, clock: NaN, opacity: NaN, idle: NaN };
   let decAz = null;                // azimuth the hero turn hands over to, fixed when the deconstruction starts
+  // Hand-over to the mission page: only from the hero view, where the can is whole and the mission page can pick it up.
+  const LEAVE_MS = 650;
+  let leave = null;
+  leaveHero = url => {
+    if (!ready || intro || mode !== 'hero' || shownU > .001 || reduceMotion) return false;
+    leave = { start: performance.now(), url };
+    return true;
+  };
+  addEventListener('pageshow', e => { if (e.persisted && leave) { leave = null; layout(); } });
 
   // The hero camera (following the parachute landing while it plays).
   function heroView() {
@@ -1059,6 +1097,7 @@ if (!renderer) {
 
     if (st.opacity !== drawn.opacity) renderer.domElement.style.opacity = st.opacity;
     if (shownU <= 0) decAz = null;
+    if (leave) dirty = true;
     const changed = dirty || shownT !== drawn.t || shownC !== drawn.c || shownU !== drawn.u || shownSpin !== drawn.spin || heroClock !== drawn.clock || idleAz !== drawn.idle;
     if (ready && st.opacity > 0 && changed) {
       poseParts(shownT);
@@ -1078,7 +1117,20 @@ if (!renderer) {
         out = h.out + (1 - h.out) * e;
       }
       scene.fog.near = 700 * frameScale * out; scene.fog.far = 1300 * frameScale * out;   // keep the haze where it normally sits
-      placeCamera(target, dist, az, el);
+      let scale = frameScale;
+      if (leave) {                    // slide the can to the middle of the screen, framed the way the mission page opens
+        const e = easeInOut(clamp((now - leave.start) / LEAVE_MS));
+        target = lerp3(target, [0, 0, 60], e); dist += (350 - dist) * e; el += (16 - el) * e;
+        scale = frameScale + (Math.max(1, (W >= H ? 1.6 : .95) * H / W) - frameScale) * e;   // same as the mission page's opening frame
+        camera.setViewOffset(W, H, -viewOx * (1 - e), viewOy * (1 - e), W, H);
+        camera.updateProjectionMatrix();
+        if (e >= 1 && !leave.gone) {
+          leave.gone = true;
+          rememberLeave({ hero: true, az });
+          location.href = leave.url;
+        }
+      }
+      placeCamera(target, dist, az, el, scale);
       renderer.render(scene, camera);
       drawn = { t: shownT, c: shownC, u: shownU, spin: shownSpin, clock: heroClock, opacity: st.opacity, idle: idleAz };
       dirty = false;
