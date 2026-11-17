@@ -28,7 +28,6 @@
   #stage { position:fixed; inset:0; z-index:0; transition:opacity .5s; }
   #stage canvas { display:block; width:100%; height:100%; }
   #stage.hidden { opacity:0; }
-  #stage.quick { transition-duration:.2s; }
   #fallback { position:fixed; inset:0; display:none; align-items:center; justify-content:center; color:var(--muted); font-size:15px; padding:24px; text-align:center; }
   #labels { position:fixed; inset:0; z-index:2; pointer-events:none; overflow:hidden; }
   .lbl { position:absolute; left:0; top:0; display:flex; align-items:center; gap:7px; opacity:0; white-space:nowrap; will-change:transform;
@@ -202,10 +201,41 @@
     #explore { padding:64px 16px; }
     footer { padding:20px 16px; }
   }
+
+  /* ---------- cloud bank between the landing page and the mission page (identical on both pages) ----------
+     The index sweeps it down over the screen as the can lifts off; the mission page opens under it and
+     sweeps it on down and away, so the page change happens inside the clouds. */
+  #veil { position:fixed; left:0; right:0; top:-50vh; height:200vh; z-index:60; pointer-events:none; visibility:hidden;
+          transform:translateY(-150vh); will-change:transform;
+          -webkit-mask-image:linear-gradient(transparent, #000 25%, #000 75%, transparent); mask-image:linear-gradient(transparent, #000 25%, #000 75%, transparent);
+          background:
+            radial-gradient(30% 7% at 16% 27%, #fff, rgba(255,255,255,0)),
+            radial-gradient(36% 8% at 74% 31%, #fff, rgba(255,255,255,0)),
+            radial-gradient(26% 6% at 44% 41%, rgba(255,255,255,.95), rgba(255,255,255,0)),
+            radial-gradient(34% 7% at 86% 50%, #fff, rgba(255,255,255,0)),
+            radial-gradient(32% 7% at 22% 57%, #fff, rgba(255,255,255,0)),
+            radial-gradient(30% 6% at 60% 66%, rgba(255,255,255,.95), rgba(255,255,255,0)),
+            radial-gradient(34% 7% at 30% 76%, #fff, rgba(255,255,255,0)),
+            linear-gradient(#e4eaf0, #f3f6f9 30%, #f6f8fa 50%, #f3f6f9 70%, #e4eaf0); }
+  html.veil-in #veil { visibility:visible; transform:none; transition:transform .9s cubic-bezier(.5,0,.8,.45); }
+  html.veil-on #veil { visibility:visible; transform:none; }
+  html.veil-on.veil-out #veil { transform:translateY(150vh); transition:transform 1.5s cubic-bezier(.2,.55,.35,1); }
+  @media (prefers-reduced-motion: reduce) { #veil { display:none; } }
 </style>
+<script>
+  // Arriving from the landing page through its cloud bank: start under the same clouds (before the first paint).
+  try {
+    const v = JSON.parse(sessionStorage.getItem('runnysat-leave') || 'null');
+    if (v && v.clouds && Date.now() - v.at < 8000 && !location.hash && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      document.documentElement.classList.add('veil-on');
+      setTimeout(() => { const c = document.documentElement.classList; if (c.contains('veil-on')) c.add('veil-out'); }, 8000);   // never leave the page covered
+    }
+  } catch (e) {}
+</script>
 <script type="importmap">{ "imports": { "three": "./assets/three.module.min.js" } }</script>
 </head>
 <body>
+<div id="veil" aria-hidden="true"></div>
 <div id="stage" aria-hidden="true"></div>
 <div id="fallback">The 3D scene needs WebGL, which isn't available in this browser. The mission is still described below.</div>
 <div id="labels" aria-hidden="true"></div>
@@ -410,12 +440,18 @@ if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
 const deepLink = location.hash && location.hash.length > 1 && document.querySelector(location.hash);
 let fromIndex = null;
 try { fromIndex = JSON.parse(sessionStorage.getItem('runnysat-leave') || 'null'); sessionStorage.removeItem('runnysat-leave'); } catch (e) {}
-if (fromIndex && Date.now() - fromIndex.at > 4000) fromIndex = null;
+if (fromIndex && Date.now() - fromIndex.at > 8000) fromIndex = null;
+const throughClouds = root.classList.contains('veil-on');   // the landing page's cloud bank is covering the screen
+// Clear the clouds away (once the scene under them is drawing).
+function clearClouds() {
+  if (!throughClouds) return;
+  root.classList.add('veil-out');
+  setTimeout(() => root.classList.remove('veil-on', 'veil-out'), 1600);
+}
 const playIntro = !reduceMotion && !deepLink;
 if (!playIntro) root.classList.remove('intro');
 else scrollTo(0, 0);
-stage.classList.add('hidden');      // shown once the model is in (quickly when the landing page handed the can over)
-if (fromIndex && fromIndex.hero) stage.classList.add('quick');
+if (!throughClouds) stage.classList.add('hidden');      // shown once the model is in (under the clouds, it needs no fade)
 
 /* ---------- sensor view mode (shared by the HUD chips and the sensor cards) ---------- */
 const MODES = ['ndvi', 'thermal', 'rededge', 'fused'];
@@ -625,6 +661,7 @@ try { renderer = new THREE.WebGLRenderer({ antialias: true }); } catch (e) { ren
 
 if (!renderer) {
   $('fallback').style.display = 'flex';
+  clearClouds();
   root.classList.remove('intro');
   $('hud').classList.remove('wait');
   measure();
@@ -1031,8 +1068,10 @@ if (!renderer) {
   const mixCam = (a, b, f) => ({ target: lerp3(a.target, b.target, f), dist: lerp(a.dist, b.dist, f), az: lerp(a.az, b.az, f), el: lerp(a.el, b.el, f), drop: lerp(a.drop || 0, b.drop || 0, f) });
 
   /* ---------- the opening: liftoff, apogee, parachute, descent, down to the sensors ---------- */
-  const startAz = fromIndex && fromIndex.hero ? ((fromIndex.az % 360) + 360) % 360 : 330;
   const IN = { lift: .9, liftEnd: 2.7, deploy: 3.0, descend: 4.2, pan: 5.3, sensors: 6.9, beams: 7.1, settle: 7.5, end: 9.6 };
+  // Through the clouds: the can already lifted off on the landing page, so pick the climb up inside the cloud layer.
+  const T0 = throughClouds ? 2.3 : 0;
+  const startAz = fromIndex && fromIndex.hero ? (((fromIndex.az - 7 * T0) % 360) + 360) % 360 : 330;
   const STEPS = [[0, 'Liftoff'], [IN.deploy, 'Parachute out'], [IN.descend, 'Descent'], [IN.pan, 'Down to the sensors'], [IN.beams, 'Looking at the ground']];
   function introAt(t) {
     const st = {};
@@ -1138,7 +1177,7 @@ if (!renderer) {
 
     let st;
     if (ready && introT < IN.end + 1.2) {
-      introT = introT < 0 ? 0 : introT + dt;   // the first frame after loading is a long one: start the clock after it
+      introT = introT < 0 ? T0 : introT + dt;   // the first frame after loading is a long one: start the clock after it
       st = introAt(introT);
       for (const [t, name] of STEPS) if (introT >= t) introStep.textContent = name;
       introCap.classList.toggle('wait', introT > IN.end - .6);
@@ -1225,9 +1264,10 @@ if (!renderer) {
     buildMeshes(model);
     ready = true;
     stage.classList.remove('hidden');
+    requestAnimationFrame(() => requestAnimationFrame(clearClouds));   // after the first frames of the climb are on screen
     if (playIntro) { introCap.classList.remove('wait'); }
     else if (deepLink) requestAnimationFrame(() => { measure(); deepLink.scrollIntoView(); });
-  }).catch(() => { $('fallback').textContent = 'Could not load the 3D model.'; $('fallback').style.display = 'flex'; finishIntro(); });
+  }).catch(() => { $('fallback').textContent = 'Could not load the 3D model.'; $('fallback').style.display = 'flex'; finishIntro(); clearClouds(); });
 }
 </script>
 </body>
