@@ -59,8 +59,6 @@
               background:var(--panel); border:1px solid var(--line); border-radius:999px; padding:6px 6px 6px 16px; backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
               box-shadow:0 6px 20px rgba(20,30,40,.10); font-size:13px; color:var(--muted); transition:opacity .45s, transform .45s; white-space:nowrap; }
   #introCap b { color:var(--ink); font-weight:600; font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:.06em; text-transform:uppercase; }
-  #introCap button { font:inherit; font-size:12.5px; border:1px solid var(--line); background:#fff; color:var(--ink); border-radius:999px; padding:5px 12px; cursor:pointer; }
-  #introCap button:hover { border-color:#aab4be; }
   html:not(.intro) #introCap { opacity:0; transform:translate(-50%, 10px); pointer-events:none; }
   #introCap.wait { opacity:0; }
 
@@ -222,7 +220,7 @@
 </header>
 <div id="progress"></div>
 
-<div id="introCap" class="wait"><b id="introStep">Liftoff</b><button type="button" id="skip">Skip intro</button></div>
+<div id="introCap" class="wait"><b id="introStep">Liftoff</b></div>
 
 <aside id="hud" class="wait payload" aria-label="Live readout (simulated)">
   <div class="hd"><b id="hudTitle">Payload · 1 s summary</b><span>simulated</span></div>
@@ -718,19 +716,40 @@ if (!renderer) {
   scene.add(studio);
 
   /* ---------- clouds ---------- */
-  const puff = (() => {
-    const c = makeCanvas(256, 256), x = c.getContext('2d');
-    for (let i = 0; i < 9; i++) {
-      const a = i / 9 * Math.PI * 2, r = i ? 52 : 0, px = 128 + r * Math.cos(a) * 1.25, py = 134 + r * Math.sin(a) * .6, rad = i ? 62 : 86;
-      const g = x.createRadialGradient(px, py, 0, px, py, rad);
-      g.addColorStop(0, 'rgba(255,255,255,.55)'); g.addColorStop(1, 'rgba(255,255,255,0)');
-      x.fillStyle = g; x.fillRect(0, 0, 256, 256);
+  // Each puff is a white texture whose alpha alone carries the shape. (A canvas fading white to fully
+  // transparent comes out with stray coloured pixels in its faint edges, which piled up into glitter.)
+  const puffs = [0, 1, 2].map(v => {
+    const N = 128, data = new Uint8Array(N * N * 4);
+    const blobs = [];
+    for (let i = 0; i < 11; i++) {   // a flat-bottomed cumulus: bigger lobes in the middle, smaller towards the ends
+      const u = (hash(i, 11 + v) - .5) * 1.25, top = 1 - Math.abs(u) / .7;
+      blobs.push([.5 + u * .62, .58 - hash(i, 21 + v) * .22 * top, .1 + .12 * top * (.6 + .4 * hash(i, 31 + v))]);
     }
-    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
-  })();
+    const vn = (x, y, f) => {        // smooth value noise for a soft, uneven edge
+      const X = x * f, Y = y * f, xi = Math.floor(X), yi = Math.floor(Y), fx = X - xi, fy = Y - yi;
+      const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy), h = (a, b) => hash(a + 97 * v, b + 13);
+      return lerp(lerp(h(xi, yi), h(xi + 1, yi), sx), lerp(h(xi, yi + 1), h(xi + 1, yi + 1), sx), sy);
+    };
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      const u = (x + .5) / N, w = 1 - (y + .5) / N;   // w runs top to bottom (row 0 is the texture's bottom)
+      let d = 0;
+      for (const [bx, by, br] of blobs) { const dx = (u - bx) / br, dy = (w - by) / (br * .8); d += Math.exp(-(dx * dx + dy * dy) * 1.6); }
+      d *= .75 + .5 * (vn(u, w, 6) * .65 + vn(u, w, 13) * .35);
+      d *= 1 - smooth(.6, .72, w);   // flatten the base
+      const edge = Math.min(u, 1 - u, w, 1 - w);
+      const a = clamp((d - .35) / .9) * smooth(0, .08, edge);
+      const k = 4 * (y * N + x);
+      data[k] = data[k + 1] = data[k + 2] = 255;
+      data[k + 3] = Math.round(255 * Math.pow(a, .8) * .85);
+    }
+    const t = new THREE.DataTexture(data, N, N);
+    t.colorSpace = THREE.SRGBColorSpace; t.magFilter = THREE.LinearFilter; t.minFilter = THREE.LinearMipmapLinearFilter;
+    t.generateMipmaps = true; t.needsUpdate = true;
+    return t;
+  });
   const clouds = [];
   for (let i = 0; i < 46; i++) {
-    const mat = new THREE.SpriteMaterial({ map: puff, transparent: true, depthWrite: false, opacity: 0, fog: true });
+    const mat = new THREE.SpriteMaterial({ map: puffs[i % 3], transparent: true, depthWrite: false, opacity: 0, fog: true });
     const s = new THREE.Sprite(mat);
     const a = hash(i, 3) * Math.PI * 2, r = 520 + hash(i, 4) * 2400, sc = 500 + hash(i, 5) * 1300;
     s.position.set(r * Math.cos(a), r * Math.sin(a), -3000 + hash(i, 6) * 6000);
@@ -1051,6 +1070,8 @@ if (!renderer) {
   let startAz = fromIndex && fromIndex.hero ? ((fromIndex.az % 360) + 360) % 360 : 330;
   const IN = { lift: .9, liftEnd: 2.7, deploy: 3.0, descend: 4.2, pan: 5.3, sensors: 6.9, beams: 7.1, settle: 7.5, end: 9.6 };
   const STEPS = [[0, 'Liftoff'], [IN.deploy, 'Parachute out'], [IN.descend, 'Descent'], [IN.pan, 'Down to the sensors'], [IN.beams, 'Looking at the ground']];
+  // Everything up to the sensor reveal plays at double speed; the rest at normal speed.
+  const introRate = t => t < IN.sensors ? 2 : 1;
   function introAt(t) {
     const st = {};
     // Liftoff: the can climbs away from the studio floor. The camera stays with the floor at first and tilts up, then races to catch up.
@@ -1140,7 +1161,6 @@ if (!renderer) {
     hud.classList.remove('wait');
     measure();
   }
-  $('skip').addEventListener('click', () => { introT = Infinity; finishIntro(); });
   const skipOn = e => { if (root.classList.contains('intro') && ready && introT > .3) { introT = Infinity; finishIntro(); } };
   addEventListener('wheel', skipOn, { passive: true });
   addEventListener('touchmove', skipOn, { passive: true });
@@ -1172,8 +1192,10 @@ if (!renderer) {
 
     let st;
     if (ready && introT < IN.end + 1.2) {
-      introT = waiting || introT < 0 ? 0 : introT + dt;   // the first frame after loading (or after the hand-over) is a long one: start the clock after it
+      const rate = introRate(introT);
+      introT = waiting || introT < 0 ? 0 : introT + dt * rate;   // the first frame after loading (or after the hand-over) is a long one: start the clock after it
       st = introAt(introT);
+      st.cloudV *= rate;   // a speed, so it scales with the faster clock
       for (const [t, name] of STEPS) if (introT >= t) introStep.textContent = name;
       introCap.classList.toggle('wait', introT > IN.end - .6);
       if (introT >= IN.end - .4) finishIntro();
