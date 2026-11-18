@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>RunnySat</title>
-<meta name="description" content="RunnySat: a satellite the size of a soft-drink can. Scroll to watch all 36 parts go together, one step at a time.">
+<title data-es="RunnySat">RunnySat</title>
+<meta name="description" content="RunnySat: a satellite the size of a soft-drink can. Scroll to watch all 36 parts go together, one step at a time." data-es-content="RunnySat: un satélite del tamaño de una lata de refresco. Desplázate para ver cómo se montan sus 36 piezas, paso a paso.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -43,6 +43,11 @@
   .nav .links { margin-left:auto; display:flex; gap:24px; align-items:center; font-size:14px; }
   .nav .links a { text-decoration:none; color:var(--muted); }
   .nav .links a:hover { color:var(--ink); }
+  .lang-toggle { font:inherit; display:inline-flex; align-items:center; padding:2px; border:1px solid var(--line); background:#fff; border-radius:999px; cursor:pointer; font-size:11.5px; font-weight:600; }
+  .lang-toggle:hover { border-color:#aab4be; }
+  .lang-toggle span { padding:3px 7px; border-radius:999px; color:var(--muted); line-height:1.2; }
+  html[lang="es"] .lang-toggle .es, html[lang="en"] .lang-toggle .en { background:var(--ink); color:#fff; }
+  .nav .links a { white-space:nowrap; }
   .nav .links a.pill { color:var(--ink); border:1px solid var(--line); background:#fff; border-radius:999px; padding:6px 14px; }
   .nav .links a.pill:hover { border-color:#aab4be; }
   .nav .links a.pill.mission { border-color:rgba(232,119,30,.6); }
@@ -165,6 +170,16 @@
     dl.subs dd { margin-bottom:8px; }
     }
   @media (min-width: 900px) { #hero .panel-sm { display:contents; } }
+  @media (max-width: 899px) {
+    .lang-toggle span { padding:3px 6px; }
+    html[lang="es"] .lang-toggle .es, html[lang="en"] .lang-toggle .en { display:none; }
+    html .lang-toggle span { background:none; color:var(--ink); }
+  }
+  @media (max-width: 480px) {
+    .nav .links { gap:10px !important; }
+    .nav .links .hide-xs { display:none; }
+    .nav .links a.pill { padding:5px 10px; }
+  }
 </style>
 <script type="importmap">{ "imports": { "three": "./assets/three.module.min.js" } }</script>
 <link rel="modulepreload" href="./assets/three.module.min.js">
@@ -172,58 +187,59 @@
 </head>
 <body>
 <div id="stage" aria-hidden="true"></div>
-<div id="fallback">The 3D model needs WebGL, which isn't available in this browser. The build steps below still explain every part.</div>
+<div id="fallback" data-es="El modelo 3D necesita WebGL, que no está disponible en este navegador. Los pasos de montaje de abajo siguen explicando cada pieza.">The 3D model needs WebGL, which isn't available in this browser. The build steps below still explain every part.</div>
 
 <header class="nav" id="nav">
   <a class="brand" href="#top"><i></i>RunnySat</a>
-  <nav class="links" aria-label="Sections">
-    <a href="#build" class="hide-sm">The build</a>
-    <a href="#specs">Specs</a>
-    <a href="visualizer.html" class="pill" data-leave="viz">3D visualizer</a>
-    <a href="mission.html" class="pill mission" data-leave><span class="dot"></span>Mission</a>
+  <nav class="links" aria-label="Sections" data-es-aria-label="Secciones">
+    <a href="#build" class="hide-sm" data-es="El montaje">The build</a>
+    <a href="#specs" class="hide-xs" data-es="Datos">Specs</a>
+    <a href="visualizer.html" class="pill" data-leave="viz" data-es="Visor 3D">3D visualizer</a>
+    <a href="mission.html" class="pill mission" data-leave data-es="&lt;span class=&quot;dot&quot;&gt;&lt;/span&gt;Misión"><span class="dot"></span>Mission</a>
+    <button type="button" class="lang-toggle" data-lang-toggle><span class="es">ES</span><span class="en">EN</span></button>
   </nav>
 </header>
 <div id="progress"></div>
-<div id="orbitHint">⟲ Drag to rotate</div>
+<div id="orbitHint" data-es="⟲ Arrastra para girar">⟲ Drag to rotate</div>
 
-<ol id="rail" aria-label="Build chapters"></ol>
+<ol id="rail" aria-label="Build chapters" data-es-aria-label="Fases del montaje"></ol>
 
 <main id="top">
   <section id="hero">
     <div class="col">
       <div class="panel-sm">
-        <div class="eyebrow">CanSat · construction sequence</div>
+        <div class="eyebrow" data-es="CanSat · secuencia de montaje">CanSat · construction sequence</div>
         <h1>RunnySat</h1>
-        <p class="lead">A satellite the size of a soft-drink can. <strong>Three ground-facing sensors, two computers, GPS and a LoRa downlink</strong>, packed into a printed shell. Scroll down and watch it go together, part by part.</p>
+        <p class="lead" data-es="Un satélite del tamaño de una lata de refresco. &lt;strong&gt;Tres sensores mirando al suelo, dos ordenadores, GPS y un enlace LoRa&lt;/strong&gt;, metidos en una carcasa impresa. Desplázate hacia abajo y mira cómo se monta, pieza a pieza.">A satellite the size of a soft-drink can. <strong>Three ground-facing sensors, two computers, GPS and a LoRa downlink</strong>, packed into a printed shell. Scroll down and watch it go together, part by part.</p>
         <div class="btns">
-          <a class="btn primary" href="#build">See how it's built ↓</a>
-          <a class="btn" href="visualizer.html" data-leave="viz">Open the 3D visualizer</a>
-          <a class="btn" href="mission.html" data-leave>The mission →</a>
+          <a class="btn primary" href="#build" data-es="Mira cómo se construye ↓">See how it's built ↓</a>
+          <a class="btn" href="visualizer.html" data-leave="viz" data-es="Abrir el visor 3D">Open the 3D visualizer</a>
+          <a class="btn" href="mission.html" data-leave data-es="La misión →">The mission →</a>
         </div>
         <div class="facts">
-          <div><b>Ø66 mm</b>diameter</div>
-          <div><b>114.5 mm</b>tall</div>
-          <div><b>36</b>parts</div>
-          <div><b>6</b>build stages</div>
+          <div data-es="&lt;b&gt;Ø66 mm&lt;/b&gt;de diámetro"><b>Ø66 mm</b>diameter</div>
+          <div data-es="&lt;b&gt;114,5 mm&lt;/b&gt;de alto"><b>114.5 mm</b>tall</div>
+          <div data-es="&lt;b&gt;36&lt;/b&gt;piezas"><b>36</b>parts</div>
+          <div data-es="&lt;b&gt;6&lt;/b&gt;fases de montaje"><b>6</b>build stages</div>
         </div>
       </div>
     </div>
-    <div class="cue"><i></i>Scroll to build</div>
-    <div id="loading">Loading 3D model…</div>
+    <div class="cue" data-es="&lt;i&gt;&lt;/i&gt;Desplázate para montar"><i></i>Scroll to build</div>
+    <div id="loading" data-es="Cargando modelo 3D…">Loading 3D model…</div>
   </section>
 
   <section id="build">
     <div class="col">
-      <div class="eyebrow">The build</div>
-      <h2>From an empty base plate to a sealed can.</h2>
-      <p>Every part arrives in the order it is fitted. As you scroll, the next one drops into place and the card beside it explains what it is and why it's there.</p>
+      <div class="eyebrow" data-es="El montaje">The build</div>
+      <h2 data-es="De una placa base vacía a una lata cerrada.">From an empty base plate to a sealed can.</h2>
+      <p data-es="Cada pieza llega en el orden en que se monta. Al desplazarte, la siguiente encaja en su sitio y la tarjeta de al lado explica qué es y para qué sirve.">Every part arrives in the order it is fitted. As you scroll, the next one drops into place and the card beside it explains what it is and why it's there.</p>
       <ol class="chapters">
-        <li><span>01</span>Sensor base</li>
-        <li><span>02</span>Sled, battery &amp; Pi</li>
-        <li><span>03</span>The two PCBs</li>
-        <li><span>04</span>Antenna deck</li>
-        <li><span>05</span>Shell</li>
-        <li><span>06</span>Close</li>
+        <li data-es="&lt;span&gt;01&lt;/span&gt;Base de sensores"><span>01</span>Sensor base</li>
+        <li data-es="&lt;span&gt;02&lt;/span&gt;Trineo, batería y Pi"><span>02</span>Sled, battery &amp; Pi</li>
+        <li data-es="&lt;span&gt;03&lt;/span&gt;Las dos PCB"><span>03</span>The two PCBs</li>
+        <li data-es="&lt;span&gt;04&lt;/span&gt;Plataforma de antenas"><span>04</span>Antenna deck</li>
+        <li data-es="&lt;span&gt;05&lt;/span&gt;Carcasa"><span>05</span>Shell</li>
+        <li data-es="&lt;span&gt;06&lt;/span&gt;Cierre"><span>06</span>Close</li>
       </ol>
     </div>
   </section>
@@ -231,175 +247,175 @@
   <div id="steps">
     <!-- data-t: animation time (s) at which this step starts. data-ch: chapter 1–6. -->
     <section class="step" data-t="3" data-ch="1"><div class="card">
-      <div class="meta"><span class="ch">01 · Sensor base</span><span class="n"></span></div>
-      <h3>Printed sensor base</h3>
-      <p>The build starts at the bottom. This printed plate replaces the old shell bottom and carries all three downward-looking sensors, so they see the ground during the descent.</p>
-      <div class="tags"><span>3D printed</span><span>Ø66 mm</span></div>
+      <div class="meta"><span class="ch" data-es="01 · Base de sensores">01 · Sensor base</span><span class="n"></span></div>
+      <h3 data-es="Base de sensores impresa">Printed sensor base</h3>
+      <p data-es="El montaje empieza por abajo. Esta placa impresa sustituye al antiguo fondo de la carcasa y lleva los tres sensores que miran hacia abajo, para que vean el suelo durante el descenso.">The build starts at the bottom. This printed plate replaces the old shell bottom and carries all three downward-looking sensors, so they see the ground during the descent.</p>
+      <div class="tags"><span data-es="Impresa en 3D">3D printed</span><span>Ø66 mm</span></div>
     </div></section>
 
     <section class="step" data-t="4.6" data-ch="1"><div class="card">
-      <div class="meta"><span class="ch">01 · Sensor base</span><span class="n"></span></div>
-      <h3>PETG window</h3>
-      <p>A thin PETG disc drops in over the camera opening, protecting the lens while letting it look straight down through the base.</p>
-      <div class="tags"><span>16 × 0.5 mm</span><span>PETG</span></div>
+      <div class="meta"><span class="ch" data-es="01 · Base de sensores">01 · Sensor base</span><span class="n"></span></div>
+      <h3 data-es="Ventana de PETG">PETG window</h3>
+      <p data-es="Un disco fino de PETG se coloca sobre la abertura de la cámara: protege la lente y le deja mirar en vertical a través de la base.">A thin PETG disc drops in over the camera opening, protecting the lens while letting it look straight down through the base.</p>
+      <div class="tags"><span data-es="16 × 0,5 mm">16 × 0.5 mm</span><span>PETG</span></div>
     </div></section>
 
     <section class="step" data-t="5.6" data-ch="1"><div class="card">
-      <div class="meta"><span class="ch">01 · Sensor base</span><span class="n"></span></div>
-      <h3>Pi Camera Module 2 NoIR</h3>
-      <p>A camera with no infrared-blocking filter, fitted with a blue gel. It sees near-infrared and blue light at once, the classic setup for NDVI-style vegetation imaging. Four self-tapping screws hold it down.</p>
+      <div class="meta"><span class="ch" data-es="01 · Base de sensores">01 · Sensor base</span><span class="n"></span></div>
+      <h3 data-es="Pi Camera Module 2 NoIR">Pi Camera Module 2 NoIR</h3>
+      <p data-es="Una cámara sin filtro de infrarrojos, con una lámina de gel azul. Ve a la vez el infrarrojo cercano y la luz azul, la configuración clásica para imágenes de vegetación tipo NDVI. La sujetan cuatro tornillos autorroscantes.">A camera with no infrared-blocking filter, fitted with a blue gel. It sees near-infrared and blue light at once, the classic setup for NDVI-style vegetation imaging. Four self-tapping screws hold it down.</p>
       <div class="tags"><span>SC0024</span><span>4 × M2×6</span></div>
     </div></section>
 
     <section class="step" data-t="8.6" data-ch="1"><div class="card">
-      <div class="meta"><span class="ch">01 · Sensor base</span><span class="n"></span></div>
-      <h3>MLX90640 thermal camera</h3>
-      <p>A 32 × 24 pixel thermal imager. Plastic blocks thermal infrared, so this one looks through an open hole instead of a window. A printed clamp bar and two screws hold it in place.</p>
-      <div class="tags"><span>Pimoroni PIM365</span><span>19 × 22 mm</span><span>55° FOV</span><span>2 × M2×8</span></div>
+      <div class="meta"><span class="ch" data-es="01 · Base de sensores">01 · Sensor base</span><span class="n"></span></div>
+      <h3 data-es="Cámara térmica MLX90640">MLX90640 thermal camera</h3>
+      <p data-es="Una cámara térmica de 32 × 24 píxeles. El plástico bloquea el infrarrojo térmico, así que mira por un agujero abierto en lugar de una ventana. La sujetan una barra de apriete impresa y dos tornillos.">A 32 × 24 pixel thermal imager. Plastic blocks thermal infrared, so this one looks through an open hole instead of a window. A printed clamp bar and two screws hold it in place.</p>
+      <div class="tags"><span>Pimoroni PIM365</span><span>19 × 22 mm</span><span data-es="55° de campo">55° FOV</span><span>2 × M2×8</span></div>
     </div></section>
 
     <section class="step" data-t="12.2" data-ch="1"><div class="card">
-      <div class="meta"><span class="ch">01 · Sensor base</span><span class="n"></span></div>
-      <h3>AS7263 NIR spectrometer</h3>
-      <p>The third sensor measures six near-infrared bands, adding spectral readings to the two images. Two M3 screws finish the sensor base.</p>
-      <div class="tags"><span>SparkFun SEN-14351</span><span>25.4 × 25.4 mm</span><span>2 × M3×8</span></div>
+      <div class="meta"><span class="ch" data-es="01 · Base de sensores">01 · Sensor base</span><span class="n"></span></div>
+      <h3 data-es="Espectrómetro NIR AS7263">AS7263 NIR spectrometer</h3>
+      <p data-es="El tercer sensor mide seis bandas del infrarrojo cercano y añade lecturas espectrales a las dos imágenes. Dos tornillos M3 completan la base de sensores.">The third sensor measures six near-infrared bands, adding spectral readings to the two images. Two M3 screws finish the sensor base.</p>
+      <div class="tags"><span>SparkFun SEN-14351</span><span data-es="25,4 × 25,4 mm">25.4 × 25.4 mm</span><span>2 × M3×8</span></div>
     </div></section>
 
     <section class="step" data-t="16.8" data-ch="2"><div class="card">
-      <div class="meta"><span class="ch">02 · Sled</span><span class="n"></span></div>
-      <h3>The sled</h3>
-      <p>The backbone of the electronics. The Raspberry Pi mounts on one side and the battery on the other, and both PCBs slide down into it later.</p>
-      <div class="tags"><span>3D printed</span></div>
+      <div class="meta"><span class="ch" data-es="02 · Trineo">02 · Sled</span><span class="n"></span></div>
+      <h3 data-es="El trineo">The sled</h3>
+      <p data-es="La columna vertebral de la electrónica. La Raspberry Pi va a un lado y la batería al otro, y más tarde las dos PCB se deslizan dentro.">The backbone of the electronics. The Raspberry Pi mounts on one side and the battery on the other, and both PCBs slide down into it later.</p>
+      <div class="tags"><span data-es="Impreso en 3D">3D printed</span></div>
     </div></section>
 
     <section class="step" data-t="18.6" data-ch="2"><div class="card">
-      <div class="meta"><span class="ch">02 · Sled</span><span class="n"></span></div>
-      <h3>Raspberry Pi Zero 2 W</h3>
-      <p>The payload computer, with its microSD card already fitted. It goes in from inside the sled onto four posts, held by self-tapping screws with their heads on the Pi.</p>
+      <div class="meta"><span class="ch" data-es="02 · Trineo">02 · Sled</span><span class="n"></span></div>
+      <h3 data-es="Raspberry Pi Zero 2 W">Raspberry Pi Zero 2 W</h3>
+      <p data-es="El ordenador de la carga útil, con su tarjeta microSD ya puesta. Entra desde el interior del trineo sobre cuatro postes, sujeta con tornillos autorroscantes con la cabeza sobre la Pi.">The payload computer, with its microSD card already fitted. It goes in from inside the sled onto four posts, held by self-tapping screws with their heads on the Pi.</p>
       <div class="tags"><span>4 × M2.5×4</span><span>microSD</span></div>
     </div></section>
 
     <section class="step" data-t="22" data-ch="2"><div class="card">
-      <div class="meta"><span class="ch">02 · Sled</span><span class="n"></span></div>
-      <h3>18650 battery holder</h3>
-      <p>The holder sits between the sled's guide rails, on the opposite face from the Pi.</p>
-      <div class="tags"><span>LX3214</span><span>77.5 × 21 × 21.5 mm</span></div>
+      <div class="meta"><span class="ch" data-es="02 · Trineo">02 · Sled</span><span class="n"></span></div>
+      <h3 data-es="Portapilas 18650">18650 battery holder</h3>
+      <p data-es="El portapilas se coloca entre los raíles guía del trineo, en la cara opuesta a la Pi.">The holder sits between the sled's guide rails, on the opposite face from the Pi.</p>
+      <div class="tags"><span>LX3214</span><span data-es="77,5 × 21 × 21,5 mm">77.5 × 21 × 21.5 mm</span></div>
     </div></section>
 
     <section class="step" data-t="23.4" data-ch="2"><div class="card">
-      <div class="meta"><span class="ch">02 · Sled</span><span class="n"></span></div>
-      <h3>Samsung 30Q cell</h3>
-      <p>One 18650 lithium-ion cell powers the whole can. Two cable ties wrap around the holder and cell so nothing shifts on landing.</p>
-      <div class="tags"><span>INR18650-30Q</span><span>Ø18.33 × 64.85 mm</span><span>2 × cable tie</span></div>
+      <div class="meta"><span class="ch" data-es="02 · Trineo">02 · Sled</span><span class="n"></span></div>
+      <h3 data-es="Celda Samsung 30Q">Samsung 30Q cell</h3>
+      <p data-es="Una sola celda de iones de litio 18650 alimenta toda la lata. Dos bridas rodean el portapilas y la celda para que nada se mueva al aterrizar.">One 18650 lithium-ion cell powers the whole can. Two cable ties wrap around the holder and cell so nothing shifts on landing.</p>
+      <div class="tags"><span>INR18650-30Q</span><span data-es="Ø18,33 × 64,85 mm">Ø18.33 × 64.85 mm</span><span data-es="2 × brida">2 × cable tie</span></div>
     </div></section>
 
     <section class="step" data-t="26.3" data-ch="3"><div class="card">
-      <div class="meta"><span class="ch">03 · PCB B, flight computer</span><span class="n"></span></div>
-      <h3>Flight computer board</h3>
-      <p>A XIAO ESP32S3 microcontroller and a microSD logger sit on headers. Beside them, a BMP280 pressure sensor for altitude, and the Ra-02 LoRa radio soldered straight onto the board for the 433 MHz telemetry link.</p>
-      <div class="tags"><span>42 × 77.5 mm</span><span>ESP32-S3</span><span>BMP280</span><span>LoRa Ra-02</span></div>
+      <div class="meta"><span class="ch" data-es="03 · PCB B, ordenador de vuelo">03 · PCB B, flight computer</span><span class="n"></span></div>
+      <h3 data-es="Placa del ordenador de vuelo">Flight computer board</h3>
+      <p data-es="Un microcontrolador XIAO ESP32S3 y un registrador microSD van sobre conectores. Junto a ellos, un sensor de presión BMP280 para la altitud y la radio LoRa Ra-02, soldada directamente a la placa, para el enlace de telemetría a 433 MHz.">A XIAO ESP32S3 microcontroller and a microSD logger sit on headers. Beside them, a BMP280 pressure sensor for altitude, and the Ra-02 LoRa radio soldered straight onto the board for the 433 MHz telemetry link.</p>
+      <div class="tags"><span data-es="42 × 77,5 mm">42 × 77.5 mm</span><span>ESP32-S3</span><span>BMP280</span><span>LoRa Ra-02</span></div>
     </div></section>
 
     <section class="step" data-t="28.8" data-ch="3"><div class="card">
-      <div class="meta"><span class="ch">03 · PCB B, flight computer</span><span class="n"></span></div>
-      <h3>PCB B slides in</h3>
-      <p>The finished board slides down into the sled, right next to the Pi.</p>
+      <div class="meta"><span class="ch" data-es="03 · PCB B, ordenador de vuelo">03 · PCB B, flight computer</span><span class="n"></span></div>
+      <h3 data-es="Entra la PCB B">PCB B slides in</h3>
+      <p data-es="La placa terminada se desliza dentro del trineo, justo al lado de la Pi.">The finished board slides down into the sled, right next to the Pi.</p>
     </div></section>
 
     <section class="step" data-t="30.4" data-ch="3"><div class="card">
-      <div class="meta"><span class="ch">03 · PCB A, power &amp; interface</span><span class="n"></span></div>
-      <h3>Power and interface board</h3>
-      <p>A TP4056 USB-C charger, a pushbutton power switch, two 5 V regulators (one for the main electronics, one for the Pi), the GPS receiver and a 12 mm buzzer, all on 2.5 mm headers.</p>
-      <div class="tags"><span>52 × 77.5 mm</span><span>TP4056</span><span>2 × U3V40F5</span><span>NEO-6M</span></div>
+      <div class="meta"><span class="ch" data-es="03 · PCB A, alimentación e interfaz">03 · PCB A, power &amp; interface</span><span class="n"></span></div>
+      <h3 data-es="Placa de alimentación e interfaz">Power and interface board</h3>
+      <p data-es="Un cargador USB-C TP4056, un interruptor de pulsador, dos reguladores de 5 V (uno para la electrónica principal y otro para la Pi), el receptor GPS y un zumbador de 12 mm, todo sobre conectores de 2,5 mm.">A TP4056 USB-C charger, a pushbutton power switch, two 5 V regulators (one for the main electronics, one for the Pi), the GPS receiver and a 12 mm buzzer, all on 2.5 mm headers.</p>
+      <div class="tags"><span data-es="52 × 77,5 mm">52 × 77.5 mm</span><span>TP4056</span><span>2 × U3V40F5</span><span>NEO-6M</span></div>
     </div></section>
 
     <section class="step" data-t="32.6" data-ch="3"><div class="card">
-      <div class="meta"><span class="ch">03 · PCB A, power &amp; interface</span><span class="n"></span></div>
-      <h3>PCB A slides in</h3>
-      <p>The power board slides down on the battery side of the sled. Both boards now stand upright inside it.</p>
+      <div class="meta"><span class="ch" data-es="03 · PCB A, alimentación e interfaz">03 · PCB A, power &amp; interface</span><span class="n"></span></div>
+      <h3 data-es="Entra la PCB A">PCB A slides in</h3>
+      <p data-es="La placa de alimentación se desliza por el lado de la batería del trineo. Ahora las dos placas quedan de pie dentro de él.">The power board slides down on the battery side of the sled. Both boards now stand upright inside it.</p>
     </div></section>
 
     <section class="step" data-t="34.4" data-ch="4"><div class="card">
-      <div class="meta"><span class="ch">04 · Antenna deck</span><span class="n"></span></div>
-      <h3>Antenna deck and SMA jack</h3>
-      <p>The deck caps the sled. An SMA bulkhead jack goes up through the 6.6 mm hole in its tower and is locked with a washer and nut. The radio antenna will screw onto it at the very end.</p>
-      <div class="tags"><span>SMA bulkhead</span><span>8 mm hex</span></div>
+      <div class="meta"><span class="ch" data-es="04 · Plataforma de antenas">04 · Antenna deck</span><span class="n"></span></div>
+      <h3 data-es="Plataforma de antenas y conector SMA">Antenna deck and SMA jack</h3>
+      <p data-es="La plataforma cierra el trineo por arriba. Un conector SMA de panel sube por el agujero de 6,6 mm de su torre y se fija con arandela y tuerca. La antena de radio se enroscará en él al final.">The deck caps the sled. An SMA bulkhead jack goes up through the 6.6 mm hole in its tower and is locked with a washer and nut. The radio antenna will screw onto it at the very end.</p>
+      <div class="tags"><span data-es="SMA de panel">SMA bulkhead</span><span data-es="hexágono de 8 mm">8 mm hex</span></div>
     </div></section>
 
     <section class="step" data-t="36.6" data-ch="4"><div class="card">
-      <div class="meta"><span class="ch">04 · Antenna deck</span><span class="n"></span></div>
-      <h3>GPS patch antenna</h3>
-      <p>An active patch antenna lies flat on the deck plate, facing the sky through the top of the can.</p>
-      <div class="tags"><span>25 × 25 × 7.8 mm</span><span>active</span></div>
+      <div class="meta"><span class="ch" data-es="04 · Plataforma de antenas">04 · Antenna deck</span><span class="n"></span></div>
+      <h3 data-es="Antena de parche GPS">GPS patch antenna</h3>
+      <p data-es="Una antena de parche activa va plana sobre la plataforma, mirando al cielo a través de la tapa de la lata.">An active patch antenna lies flat on the deck plate, facing the sky through the top of the can.</p>
+      <div class="tags"><span data-es="25 × 25 × 7,8 mm">25 × 25 × 7.8 mm</span><span data-es="activa">active</span></div>
     </div></section>
 
     <section class="step" data-t="38" data-ch="4"><div class="card">
-      <div class="meta"><span class="ch">04 · Antenna deck</span><span class="n"></span></div>
-      <h3>Deck onto the sled</h3>
-      <p>The deck drops onto the sled and two self-tapping screws hold it. Later the top cap clamps it down as well.</p>
+      <div class="meta"><span class="ch" data-es="04 · Plataforma de antenas">04 · Antenna deck</span><span class="n"></span></div>
+      <h3 data-es="La plataforma sobre el trineo">Deck onto the sled</h3>
+      <p data-es="La plataforma se apoya sobre el trineo y la sujetan dos tornillos autorroscantes. Después, la tapa superior también la aprieta.">The deck drops onto the sled and two self-tapping screws hold it. Later the top cap clamps it down as well.</p>
       <div class="tags"><span>2 × M2×8</span></div>
     </div></section>
 
     <section class="step" data-t="42.2" data-ch="5"><div class="card">
-      <div class="meta"><span class="ch">05 · Shell</span><span class="n"></span></div>
-      <h3>Grated shell body</h3>
-      <p>The body comes down over the sensor base and twists to lock its bayonet. The gratings keep the can light and let air reach the sensors.</p>
-      <div class="tags"><span>bayonet lock</span><span>3D printed</span></div>
+      <div class="meta"><span class="ch" data-es="05 · Carcasa">05 · Shell</span><span class="n"></span></div>
+      <h3 data-es="Cuerpo enrejado de la carcasa">Grated shell body</h3>
+      <p data-es="El cuerpo baja sobre la base de sensores y gira para cerrar su bayoneta. Las rejillas aligeran la lata y dejan que el aire llegue a los sensores.">The body comes down over the sensor base and twists to lock its bayonet. The gratings keep the can light and let air reach the sensors.</p>
+      <div class="tags"><span data-es="cierre de bayoneta">bayonet lock</span><span data-es="impreso en 3D">3D printed</span></div>
     </div></section>
 
     <section class="step" data-t="48.8" data-ch="5"><div class="card">
-      <div class="meta"><span class="ch">05 · Shell</span><span class="n"></span></div>
-      <h3>Sled stack goes in</h3>
-      <p>The whole sled stands up and lowers through the 59.4 mm top opening until it rests on the internal ledge. The shell turns see-through so you can follow it.</p>
-      <div class="tags"><span>59.4 mm opening</span></div>
+      <div class="meta"><span class="ch" data-es="05 · Carcasa">05 · Shell</span><span class="n"></span></div>
+      <h3 data-es="Entra el conjunto del trineo">Sled stack goes in</h3>
+      <p data-es="Todo el trineo se pone de pie y baja por la abertura superior de 59,4 mm hasta apoyarse en el resalte interior. La carcasa se vuelve transparente para que puedas seguirlo.">The whole sled stands up and lowers through the 59.4 mm top opening until it rests on the internal ledge. The shell turns see-through so you can follow it.</p>
+      <div class="tags"><span data-es="abertura de 59,4 mm">59.4 mm opening</span></div>
     </div></section>
 
     <section class="step" data-t="55.8" data-ch="6"><div class="card">
-      <div class="meta"><span class="ch">06 · Close</span><span class="n"></span></div>
-      <h3>Threaded top cap</h3>
-      <p>The cap screws onto the body, closing the can and clamping the antenna deck in place.</p>
+      <div class="meta"><span class="ch" data-es="06 · Cierre">06 · Close</span><span class="n"></span></div>
+      <h3 data-es="Tapa superior roscada">Threaded top cap</h3>
+      <p data-es="La tapa se enrosca en el cuerpo, cierra la lata y aprieta la plataforma de antenas en su sitio.">The cap screws onto the body, closing the can and clamping the antenna deck in place.</p>
     </div></section>
 
     <section class="step" data-t="59.4" data-ch="6"><div class="card">
-      <div class="meta"><span class="ch">06 · Close</span><span class="n"></span></div>
-      <h3>433 MHz antenna</h3>
-      <p>The last part. The antenna screws onto the SMA jack, and its tip ends 39 mm above the can, inside the 45 mm limit.</p>
+      <div class="meta"><span class="ch" data-es="06 · Cierre">06 · Close</span><span class="n"></span></div>
+      <h3 data-es="Antena de 433 MHz">433 MHz antenna</h3>
+      <p data-es="La última pieza. La antena se enrosca en el conector SMA y su punta queda 39 mm por encima de la lata, dentro del límite de 45 mm.">The last part. The antenna screws onto the SMA jack, and its tip ends 39 mm above the can, inside the 45 mm limit.</p>
       <div class="tags"><span>TX433-JZ-4</span><span>SMA-J, 40 mm</span></div>
     </div></section>
 
     <section class="step final" data-t="63" data-ch="6"><div class="card">
-      <div class="meta"><span class="ch">Assembled</span><span class="n"></span></div>
-      <h3>Ready to fly</h3>
-      <p>Thirty-six parts in a Ø66 × 114.5 mm can, with every sensor looking down and both antennas looking up. Drag the model to look around it.</p>
+      <div class="meta"><span class="ch" data-es="Montada">Assembled</span><span class="n"></span></div>
+      <h3 data-es="Lista para volar">Ready to fly</h3>
+      <p data-es="Treinta y seis piezas en una lata de Ø66 × 114,5 mm, con todos los sensores mirando abajo y las dos antenas mirando arriba. Arrastra el modelo para verlo por todos lados.">Thirty-six parts in a Ø66 × 114.5 mm can, with every sensor looking down and both antennas looking up. Drag the model to look around it.</p>
     </div></section>
   </div>
 
   <section id="specs">
     <div class="col">
       <div class="panel">
-        <div class="eyebrow">Specs</div>
-        <h2>What's inside the can</h2>
+        <div class="eyebrow" data-es="Ficha técnica">Specs</div>
+        <h2 data-es="Qué hay dentro de la lata">What's inside the can</h2>
         <div class="stats">
-          <div><b>Ø66 mm</b>outer diameter</div>
-          <div><b>114.5 mm</b>tall, without the antenna</div>
-          <div><b>36</b>parts in 6 build stages</div>
-          <div><b>39 mm</b>antenna above the can (limit 45)</div>
+          <div data-es="&lt;b&gt;Ø66 mm&lt;/b&gt;de diámetro exterior"><b>Ø66 mm</b>outer diameter</div>
+          <div data-es="&lt;b&gt;114,5 mm&lt;/b&gt;de alto, sin la antena"><b>114.5 mm</b>tall, without the antenna</div>
+          <div data-es="&lt;b&gt;36&lt;/b&gt;piezas en 6 fases de montaje"><b>36</b>parts in 6 build stages</div>
+          <div data-es="&lt;b&gt;39 mm&lt;/b&gt;de antena sobre la lata (límite 45)"><b>39 mm</b>antenna above the can (limit 45)</div>
         </div>
         <dl class="subs">
-          <dt>Sensing</dt><dd>Pi Camera 2 NoIR + blue gel, MLX90640 thermal camera, AS7263 NIR spectrometer, BMP280 pressure</dd>
-          <dt>Navigation</dt><dd>NEO-6M GPS with an active patch antenna</dd>
-          <dt>Computing</dt><dd>Raspberry Pi Zero 2 W, Seeed XIAO ESP32S3, microSD logging</dd>
-          <dt>Radio</dt><dd>Ra-02 LoRa at 433 MHz, TX433-JZ-4 antenna on an SMA bulkhead</dd>
-          <dt>Power</dt><dd>Samsung 30Q 18650, TP4056 USB-C charging, 2 × Pololu U3V40F5 5 V, pushbutton switch</dd>
-          <dt>Recovery</dt><dd>12 mm active buzzer</dd>
-          <dt>Structure</dt><dd>Printed sensor base, sled and antenna deck; grated bayonet body; threaded top cap</dd>
+          <dt data-es="Sensores">Sensing</dt><dd data-es="Pi Camera 2 NoIR + gel azul, cámara térmica MLX90640, espectrómetro NIR AS7263, presión BMP280">Pi Camera 2 NoIR + blue gel, MLX90640 thermal camera, AS7263 NIR spectrometer, BMP280 pressure</dd>
+          <dt data-es="Navegación">Navigation</dt><dd data-es="GPS NEO-6M con antena de parche activa">NEO-6M GPS with an active patch antenna</dd>
+          <dt data-es="Computación">Computing</dt><dd data-es="Raspberry Pi Zero 2 W, Seeed XIAO ESP32S3, registro en microSD">Raspberry Pi Zero 2 W, Seeed XIAO ESP32S3, microSD logging</dd>
+          <dt data-es="Radio">Radio</dt><dd data-es="LoRa Ra-02 a 433 MHz, antena TX433-JZ-4 en un conector SMA de panel">Ra-02 LoRa at 433 MHz, TX433-JZ-4 antenna on an SMA bulkhead</dd>
+          <dt data-es="Alimentación">Power</dt><dd data-es="Samsung 30Q 18650, carga USB-C TP4056, 2 × Pololu U3V40F5 5 V, interruptor de pulsador">Samsung 30Q 18650, TP4056 USB-C charging, 2 × Pololu U3V40F5 5 V, pushbutton switch</dd>
+          <dt data-es="Recuperación">Recovery</dt><dd data-es="Zumbador activo de 12 mm">12 mm active buzzer</dd>
+          <dt data-es="Estructura">Structure</dt><dd data-es="Base de sensores, trineo y plataforma de antenas impresos; cuerpo enrejado con bayoneta; tapa superior roscada">Printed sensor base, sled and antenna deck; grated bayonet body; threaded top cap</dd>
         </dl>
       </div>
     </div>
   </section>
 </main>
 
-
+<script src="assets/i18n.js"></script>
 <script type="module">
 import * as THREE from 'three';
 
@@ -515,15 +531,16 @@ const stepStart = steps.map(el => +el.dataset.t);
 const stepEnd = stepStart.map((t, i) => stepStart[i + 1] ?? END);   // a step is "done" when the next one starts
 steps.forEach((el, i) => el.querySelector('.n').textContent = String(i + 1).padStart(2, '0') + ' / ' + steps.length);
 
-const CHAPTERS = ['Sensor base', 'Sled', 'PCBs', 'Antenna deck', 'Shell', 'Close'];
+const CHAPTERS = [['Sensor base', 'Base'], ['Sled', 'Trineo'], ['PCBs', 'PCB'], ['Antenna deck', 'Antenas'], ['Shell', 'Carcasa'], ['Close', 'Cierre']];
 const railItems = CHAPTERS.map((name, c) => {
   const li = document.createElement('li');
   const first = steps.findIndex(el => +el.dataset.ch === c + 1);
-  li.innerHTML = `<button type="button"><span>${name}</span><b></b></button>`;
+  li.innerHTML = `<button type="button"><span>${I18N.t(...name)}</span><b></b></button>`;
   li.firstChild.addEventListener('click', () => scrollTo({ top: anchors[first], behavior: reduceMotion ? 'auto' : 'smooth' }));
   rail.appendChild(li);
   return li;
 });
+addEventListener('langchange', () => railItems.forEach((li, c) => { li.querySelector('span').textContent = I18N.t(...CHAPTERS[c]); }));
 
 /* ================= scroll → animation time ================= */
 let W = innerWidth, H = innerHeight, anchors = [], heroH = H, switchY = 0, firstY = 0;
@@ -691,7 +708,8 @@ let leaveScene = null;               // set by the 3D scene: brings the can to t
 let resetLeave = () => {};           // set by the 3D scene: back to normal after returning
 let handedOver = false;              // the mission is showing: stop drawing here
 let mission = null;                  // { frame, url, ready, failed, shown }
-const homeTitle = document.title;
+let homeTitle = document.title;
+addEventListener('langchange', () => { if (!handedOver) homeTitle = document.title; });
 const canHandOver = () => !reduceMotion && sceneReady();
 function sizeMission() { if (mission) Object.assign(mission.frame.style, { width: innerWidth + 'px', height: innerHeight + 'px' }); }
 function loadMission(href) {
@@ -700,7 +718,7 @@ function loadMission(href) {
   if (mission) return mission;
   src.searchParams.set('handoff', '1');
   const frame = document.createElement('iframe');
-  frame.id = 'missionFrame'; frame.title = /visualizer/.test(url.pathname) ? '3D visualizer' : 'Mission'; frame.tabIndex = -1;
+  frame.id = 'missionFrame'; frame.title = /visualizer/.test(url.pathname) ? I18N.t('3D visualizer', 'Visor 3D') : I18N.t('Mission', 'Misión'); frame.tabIndex = -1;
   frame.setAttribute('aria-hidden', 'true');
   frame.src = src.href;
   mission = { frame, url: url.href, ready: false, failed: false, shown: false };
@@ -727,7 +745,7 @@ function showMission() {
   document.documentElement.classList.add('in-mission');
   handedOver = true;
   try { history.pushState({ mission: true }, '', mission.url); } catch (e) {}
-  try { document.title = fr.contentDocument.title || 'RunnySat · Mission'; } catch (e) {}
+  try { document.title = fr.contentDocument.title || I18N.t('RunnySat · Mission', 'RunnySat · Misión'); } catch (e) {}
   fr.focus();
 }
 const goToMission = href => { location.href = href; };   // the plain way, when the hand-over can't happen
@@ -1280,7 +1298,7 @@ if (!renderer) {
     if (!reduceMotion && sceneAt(scrollY).mode === 'hero') startIntro(HERO_AZ + heroClock * 7);
     ready = true; dirty = true;
     loading.classList.add('done');
-  }).catch(() => { loading.textContent = 'Could not load the 3D model.'; });
+  }).catch(() => { loading.removeAttribute('data-es'); loading.textContent = I18N.t('Could not load the 3D model.', 'No se pudo cargar el modelo 3D.'); });
 }
 </script>
 </body>

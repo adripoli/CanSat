@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>RunnySat 3D visualizer</title>
+<title data-es="RunnySat · visor 3D">RunnySat 3D visualizer</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -43,6 +43,10 @@
   body.explode.grabbing #view { cursor:grabbing; }
   #xui > * { opacity:0; transition:opacity .6s; pointer-events:none; }
   body.ui #xui > * { opacity:1; pointer-events:auto; }
+  .xhead { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+  .lang-toggle { display:inline-flex; padding:2px; border-radius:999px; font-size:11.5px; font-weight:600; gap:0; }
+  .lang-toggle span { padding:2px 7px; border-radius:999px; color:var(--muted); }
+  html[lang="es"] .lang-toggle .es, html[lang="en"] .lang-toggle .en { background:var(--ink); color:#fff; }
   .xpanel { background:var(--panel); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); border:1px solid var(--line);
             box-shadow:0 6px 24px rgba(20,30,40,0.08); }
   #xtop { position:fixed; left:28px; top:24px; max-width:min(400px, calc(100vw - 56px)); border-radius:12px; padding:14px 18px 15px; }
@@ -78,23 +82,23 @@
 <link rel="preload" href="assets/cansat-model.js" as="script">
 </head>
 <body>
-<div id="load">Loading model…</div>
+<div id="load" data-es="Cargando modelo…">Loading model…</div>
 <div id="view"></div>
 <div id="cap"><div class="step" id="capStep"></div><div class="txt" id="capTxt"></div></div>
-<div id="brand"><b>RunnySat</b>Construction sequence · 36 parts · detailed electronics</div>
+<div id="brand" data-es="&lt;b&gt;RunnySat&lt;/b&gt;Secuencia de montaje · 36 piezas · electrónica detallada"><b>RunnySat</b>Construction sequence · 36 parts · detailed electronics</div>
 <div id="xui">
   <div id="xtop" class="xpanel">
-    <a href="index.html">← RunnySat</a>
-    <h1>Exploded view</h1>
-    <p id="xhint">Drag to rotate · scroll to zoom · right-drag to pan · click a part to see what it is</p>
+    <div class="xhead"><a href="index.html">← RunnySat</a><button type="button" class="lang-toggle" data-lang-toggle><span class="es">ES</span><span class="en">EN</span></button></div>
+    <h1 data-es="Vista explosionada">Exploded view</h1>
+    <p id="xhint" data-es="Arrastra para girar · rueda para hacer zoom · arrastra con el botón derecho para desplazar · pulsa una pieza para ver qué es">Drag to rotate · scroll to zoom · right-drag to pan · click a part to see what it is</p>
   </div>
   <div id="xbar" class="xpanel">
-    <button id="xreset" title="Back to the whole exploded view">Reset view</button>
-    <button id="xbuild" class="primary" title="Play the construction sequence">▶ Watch the build</button>
+    <button id="xreset" title="Back to the whole exploded view" data-es-title="Volver a la vista explosionada completa" data-es="Restablecer vista">Reset view</button>
+    <button id="xbuild" class="primary" title="Play the construction sequence" data-es-title="Reproducir la secuencia de montaje" data-es="▶ Ver el montaje">▶ Watch the build</button>
   </div>
 </div>
 <aside id="partCard" aria-live="polite">
-  <button type="button" class="close" aria-label="Close">×</button>
+  <button type="button" class="close" aria-label="Close" data-es-aria-label="Cerrar">×</button>
   <div class="meta"><span class="ch"></span><span class="n"></span></div>
   <h3></h3>
   <p></p>
@@ -102,19 +106,21 @@
 </aside>
 <div id="bar">
   <div id="row1">
-    <button id="play" title="Play / pause (space)">❚❚</button>
+    <button id="play" title="Play / pause (space)" data-es-title="Reproducir / pausa (espacio)">❚❚</button>
     <input id="scrub" type="range" min="0" max="70" step="0.01" value="0">
     <div id="time">0.0 / 70.0 s</div>
+    <button type="button" class="lang-toggle" data-lang-toggle><span class="es">ES</span><span class="en">EN</span></button>
   </div>
   <div id="row2">
     <span id="chips"></span>
     <span class="sp"></span>
-    <span id="hint">Drag to orbit · scroll to zoom</span>
-    <button id="toExplode" title="Pull the finished can apart and click its parts">Exploded view</button>
-    <button id="follow" class="on" title="Let the animation steer the camera">Auto camera</button>
-    <button id="speed" title="Playback speed">1×</button>
+    <span id="hint" data-es="Arrastra: girar · rueda: zoom">Drag to orbit · scroll to zoom</span>
+    <button id="toExplode" title="Pull the finished can apart and click its parts" data-es-title="Separar las piezas de la lata terminada y pulsarlas" data-es="Despiece">Exploded view</button>
+    <button id="follow" class="on" title="Let the animation steer the camera" data-es-title="Dejar que la animación mueva la cámara" data-es="Cámara auto">Auto camera</button>
+    <button id="speed" title="Playback speed" data-es-title="Velocidad de reproducción">1×</button>
   </div>
 </div>
+<script src="assets/i18n.js"></script>
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from './assets/OrbitControls.js';
@@ -272,7 +278,49 @@ const PART_INFO = [
   [/^SCREW antenna deck/, '04 · Antenna deck', 'Deck screws', 'Two self-tapping screws that hold the deck onto the sled.', ['M2×8', 'self-tapping']],
   [/^433 MHz/, '06 · Close', '433 MHz antenna', 'Screws onto the SMA jack. Its tip ends 39 mm above the can, inside the 45 mm limit.', ['TX433-JZ-4', 'SMA-J, 40 mm']],
 ];
-const partInfo = name => { const r = PART_INFO.find(i => i[0].test(name)); return r ? { ch: r[1], title: r[2], text: r[3], tags: r[4] } : { ch: '', title: name, text: '', tags: [] }; };
+// Spanish for PART_INFO, entry for entry: [chapter, title, text, tags].
+const PART_INFO_ES = [
+  ["05 · Carcasa", "Cuerpo enrejado de la carcasa", "La pared exterior de la lata. Baja sobre la base de sensores y gira para cerrar su bayoneta. Las rejillas la aligeran y dejan que el aire llegue a los sensores.", ["impreso en 3D", "cierre de bayoneta", "Ø66 mm"]],
+  ["06 · Cierre", "Tapa superior roscada", "Se enrosca en el cuerpo para cerrar la lata y, a la vez, aprieta la plataforma de antenas.", ["impresa en 3D", "roscada"]],
+  ["01 · Base de sensores", "Base de sensores impresa", "El fondo de la lata. Sustituye al antiguo fondo de la carcasa y lleva los tres sensores que miran hacia abajo, para que vean el suelo durante el descenso.", ["impresa en 3D", "Ø66 mm"]],
+  ["01 · Base de sensores", "Ventana de PETG", "Un disco fino y transparente sobre la abertura de la cámara. Protege la lente y le deja mirar en vertical a través de la base.", ["16 × 0,5 mm", "PETG"]],
+  ["01 · Base de sensores", "Pi Camera Module 2 NoIR", "Una cámara sin filtro de infrarrojos, con una lámina de gel azul. Ve a la vez el infrarrojo cercano y la luz azul, la configuración clásica para imágenes de vegetación tipo NDVI.", ["SC0024", "NoIR", "gel azul"]],
+  ["01 · Base de sensores", "Tornillos de la cámara", "Cuatro tornillos autorroscantes que sujetan la Pi Camera a la base de sensores.", ["M2×6", "autorroscantes"]],
+  ["01 · Base de sensores", "Cámara térmica MLX90640", "Una cámara térmica de 32 × 24 píxeles. El plástico bloquea el infrarrojo térmico, así que mira por un agujero abierto en la base en lugar de una ventana.", ["Pimoroni PIM365", "19 × 22 mm", "55° de campo"]],
+  ["01 · Base de sensores", "Barra de apriete del MLX", "Una barra impresa que presiona la cámara térmica contra la base.", ["impresa en 3D"]],
+  ["01 · Base de sensores", "Tornillos de la barra", "Dos tornillos autorroscantes que aprietan la barra sobre la cámara térmica.", ["M2×8", "autorroscantes"]],
+  ["01 · Base de sensores", "Espectrómetro NIR AS7263", "Mide seis bandas del infrarrojo cercano y añade lecturas espectrales del suelo a las dos imágenes.", ["SparkFun SEN-14351", "25,4 × 25,4 mm"]],
+  ["01 · Base de sensores", "Tornillos del espectrómetro", "Dos tornillos M3 que sujetan la placa del espectrómetro y completan la base de sensores.", ["M3×8"]],
+  ["02 · Trineo", "El trineo", "La columna vertebral de la electrónica. La Raspberry Pi va a un lado y la batería al otro, y las dos PCB se deslizan dentro.", ["impreso en 3D"]],
+  ["02 · Trineo", "Raspberry Pi Zero 2 W", "El ordenador de la carga útil, que controla las cámaras y el espectrómetro, con su tarjeta microSD ya puesta.", ["Pi Zero 2 W", "microSD"]],
+  ["02 · Trineo", "Tornillos de la Pi", "Cuatro tornillos autorroscantes, con la cabeza sobre la Pi, que la sujetan a los postes del interior del trineo.", ["M2.5×4", "autorroscantes"]],
+  ["02 · Trineo", "Portapilas 18650", "Va entre los raíles guía del trineo, en la cara opuesta a la Pi.", ["LX3214", "77,5 × 21 × 21,5 mm"]],
+  ["02 · Trineo", "Celda Samsung 30Q", "Una sola celda de iones de litio 18650 alimenta toda la lata.", ["INR18650-30Q", "Ø18,33 × 64,85 mm", "Li-ion"]],
+  ["02 · Trineo", "Bridas", "Dos bridas rodean el portapilas y la celda para que nada se mueva al aterrizar.", ["2,5 mm"]],
+  ["03 · PCB B, ordenador de vuelo", "Placa del ordenador de vuelo", "Lleva el microcontrolador, el registrador de datos, el sensor de presión y la radio LoRa. Se desliza dentro del trineo justo al lado de la Pi.", ["42 × 77,5 mm"]],
+  ["03 · PCB B, ordenador de vuelo", "Seeed XIAO ESP32S3", "El ordenador de vuelo: un pequeño microcontrolador sobre conectores que lee los sensores de vuelo, registra los datos y envía la telemetría.", ["ESP32-S3", "21 × 17,8 mm"]],
+  ["03 · PCB B, ordenador de vuelo", "Registrador microSD", "Un módulo de tarjeta microSD que guarda a bordo los datos del vuelo, como respaldo del enlace de radio.", ["Joy-IT COM-MSD"]],
+  ["03 · PCB B, ordenador de vuelo", "Radio LoRa Ra-02", "La radio de telemetría de 433 MHz, soldada directamente a la placa. Un cable u.FL va de ella al conector SMA de la plataforma.", ["LoRa", "433 MHz", "Ra-02"]],
+  ["03 · PCB B, ordenador de vuelo", "Sensor de presión BMP280", "Mide la presión del aire, que da la altitud durante el descenso.", ["Adafruit 2651", "BMP280"]],
+  ["03 · PCB A, alimentación e interfaz", "Placa de alimentación e interfaz", "Carga, interruptor, dos reguladores de 5 V, el receptor GPS y el zumbador. Se desliza en el trineo por el lado de la batería.", ["52 × 77,5 mm"]],
+  ["03 · PCB A, alimentación e interfaz", "Cargador USB-C TP4056", "Carga la celda 18650 por USB-C, con protección de batería integrada.", ["TP4056", "USB-C"]],
+  ["03 · PCB A, alimentación e interfaz", "Interruptor de pulsador", "Enciende y apaga toda la lata con una sola pulsación.", ["Pololu Mini LV"]],
+  ["03 · PCB A, alimentación e interfaz", "Regulador de 5 V (principal)", "Convierte la tensión de la celda en 5 V estables para la electrónica principal.", ["Pololu U3V40F5", "5 V"]],
+  ["03 · PCB A, alimentación e interfaz", "Regulador de 5 V (Pi)", "Un segundo regulador de 5 V solo para la Raspberry Pi, para que sus picos de corriente no afecten al resto.", ["Pololu U3V40F5", "5 V"]],
+  ["03 · PCB A, alimentación e interfaz", "Receptor GPS NEO-6M", "Calcula dónde está la lata, usando la antena de parche de encima de la plataforma.", ["NEO-6M", "GY-GPS6MV2"]],
+  ["03 · PCB A, alimentación e interfaz", "Zumbador activo", "Un zumbador de 12 mm que ayuda al equipo de recuperación a encontrar la lata tras aterrizar.", ["12 mm", "recuperación"]],
+  ["04 · Plataforma de antenas", "Plataforma de antenas", "Cierra el trineo por arriba y sujeta las dos antenas. Dos tornillos la fijan al trineo, y la tapa superior también la aprieta.", ["impresa en 3D"]],
+  ["04 · Plataforma de antenas", "Conector SMA de panel", "Sube por el agujero de 6,6 mm de la torre de la plataforma y se fija con arandela y tuerca. La antena de radio se enrosca en él.", ["SMA de panel", "hexágono de 8 mm"]],
+  ["04 · Plataforma de antenas", "Antena de parche GPS", "Una antena de parche activa, plana sobre la plataforma, que mira al cielo a través de la tapa de la lata.", ["25 × 25 × 7,8 mm", "activa"]],
+  ["04 · Plataforma de antenas", "Tornillos de la plataforma", "Dos tornillos autorroscantes que sujetan la plataforma al trineo.", ["M2×8", "autorroscantes"]],
+  ["06 · Cierre", "Antena de 433 MHz", "Se enrosca en el conector SMA. Su punta queda 39 mm por encima de la lata, dentro del límite de 45 mm.", ["TX433-JZ-4", "SMA-J, 40 mm"]],
+];
+const partInfo = name => {
+  const k = PART_INFO.findIndex(i => i[0].test(name));
+  if (k < 0) return { ch: '', title: name, text: '', tags: [] };
+  const r = I18N.lang === 'es' ? [null, ...PART_INFO_ES[k]] : PART_INFO[k];
+  return { ch: r[1], title: r[2], text: r[3], tags: r[4] };
+};
 
 
 // Caption per step: [time, step, text].
@@ -300,7 +348,33 @@ const CAPTIONS = [
   [59.4,"6 · Close","TX433-JZ-4 antenna screws onto the SMA jack: tip 39 mm above the can, inside the 45 mm limit."],
   [63,"Assembled","Ø66 × 114.5 mm can, 36 parts."],
 ];
+// Spanish for CAPTIONS, entry for entry: [step, text].
+const CAPTIONS_ES = [
+  ["RunnySat", "Secuencia de montaje: cada pieza en el orden en que se monta, con la electrónica modelada a partir de las placas reales. Medidas en mm."],
+  ["1 · Base de sensores", "La base de sensores impresa sustituye al antiguo fondo de la carcasa y lleva los tres sensores que miran hacia abajo."],
+  ["1 · Base de sensores", "El disco de PETG (16 × 0,5) se coloca sobre la abertura de la cámara."],
+  ["1 · Base de sensores", "Pi Camera Module 2 NoIR, sujeta con 4 tornillos autorroscantes M2×6."],
+  ["1 · Base de sensores", "La cámara térmica MLX90640 (Pimoroni, 19 × 22) mira por un agujero abierto (el plástico bloquea el IR térmico). Barra de apriete + 2 × M2×8. Su pestaña de pines aún choca con la pared del trineo."],
+  ["1 · Base de sensores", "Espectrómetro NIR AS7263 (SparkFun, 25,4 × 25,4), 2 × M3×8."],
+  ["2 · Trineo", "El trineo lleva la Raspberry Pi a un lado y la batería al otro."],
+  ["2 · Trineo", "La Pi Zero 2 W entra desde el interior del trineo sobre sus postes: 4 × M2.5×4 autorroscantes, con la cabeza sobre la Pi."],
+  ["2 · Trineo", "Portapilas 18650 (77,5 × 21 × 21,5) entre los raíles guía."],
+  ["2 · Trineo", "Celda Samsung 30Q (Ø18,33 × 64,85) y 2 bridas alrededor del portapilas y la celda."],
+  ["3 · PCB B, ordenador de vuelo", "XIAO ESP32S3 y microSD Joy-IT (con tarjeta) sobre conectores, BMP280 STEMMA QT (25,4 × 17,8) y la LoRa Ra-02 soldada directamente."],
+  ["3 · PCB B, ordenador de vuelo", "La PCB B se desliza dentro del trineo, junto a la Pi."],
+  ["3 · PCB A, alimentación e interfaz", "Cargador USB-C TP4056, pulsador Pololu, dos reguladores U3V40F5 de 5 V, placa GY-GPS6MV2 y zumbador de 12 mm, todo sobre conectores de 2,5 mm."],
+  ["3 · PCB A, alimentación e interfaz", "La PCB A se desliza junto a la batería."],
+  ["4 · Plataforma de antenas", "El conector SMA de panel sube por el agujero de 6,6 mm de la torre; arandela y tuerca encima."],
+  ["4 · Plataforma de antenas", "Antena de parche GPS activa (25 × 25 × 7,8) sobre la plataforma."],
+  ["4 · Plataforma de antenas", "La plataforma se apoya sobre el trineo: 2 × M2×8 autorroscantes. La tapa superior también la aprieta."],
+  ["5 · Carcasa", "El cuerpo enrejado baja sobre la base de sensores y gira para cerrar la bayoneta."],
+  ["5 · Carcasa", "Todo el conjunto del trineo entra por la abertura superior de 59,4 mm y se apoya en el resalte interior."],
+  ["6 · Cierre", "Se enrosca la tapa superior roscada."],
+  ["6 · Cierre", "La antena TX433-JZ-4 se enrosca en el conector SMA: punta a 39 mm sobre la lata, dentro del límite de 45 mm."],
+  ["Montada", "Lata de Ø66 × 114,5 mm, 36 piezas."],
+];
 const CHAPTERS = [["Base",3],["Sled",16.8],["PCBs",26.3],["Deck",34.4],["Shell",42.2],["Close",55.8],["Done",62.5]];
+const CHAPTERS_ES = ["Base","Trineo","PCB","Antenas","Carcasa","Cierre","Hecho"];
 const CAM = [
   [0,[45,0,60],480,-55,24],
   [2.6,[0,0,12],200,-40,52],
@@ -465,7 +539,7 @@ let capShown = -1;
 function caption(t) {
   let c = 0;
   for (let i = 0; i < CAPTIONS.length; i++) if (t >= CAPTIONS[i][0]) c = i;
-  if (c !== capShown) { capStep.textContent = CAPTIONS[c][1]; capTxt.textContent = CAPTIONS[c][2]; capShown = c; }
+  if (c !== capShown) { const es = I18N.lang === 'es'; capStep.textContent = es ? CAPTIONS_ES[c][0] : CAPTIONS[c][1]; capTxt.textContent = es ? CAPTIONS_ES[c][1] : CAPTIONS[c][2]; capShown = c; }
 }
 
 let time = 0, playing = !REC, speed = 1, follow = true, lastNow = performance.now();
@@ -474,11 +548,12 @@ const chips = [];
 CHAPTERS.forEach(([name, t], i) => {
   const b = document.createElement('button');
   b.className = 'chip';
-  b.textContent = i + 1 + ' ' + name;
+  b.textContent = i + 1 + ' ' + I18N.t(name, CHAPTERS_ES[i]);
   b.onclick = () => { time = t; follow = true; followBtn.classList.add('on'); };
   document.getElementById('chips').appendChild(b);
   chips.push([b, t]);
 });
+addEventListener('langchange', () => { chips.forEach(([b], i) => { b.textContent = i + 1 + ' ' + I18N.t(CHAPTERS[i][0], CHAPTERS_ES[i]); }); capShown = -1; if (selKey) fillCard(selKey); });
 const followBtn = document.getElementById('follow');
 followBtn.onclick = () => { follow = !follow; followBtn.classList.toggle('on', follow); };
 play.onclick = () => { if (!playing && time >= END) time = 0; playing = !playing; };
@@ -627,6 +702,10 @@ function select(key) {
   const d0 = camera.position.distanceTo(controls.target), size = box.getSize(new THREE.Vector3()).length();
   focus = { t0: controls.target.clone(), t1: vC.clone(), d0, d1: Math.min(d0, Math.max(160, size * 5, expDist() * .45)),
             dir: camera.position.clone().sub(controls.target).normalize(), t: 0 };
+  fillCard(key);
+}
+function fillCard(key) {
+  const group = parts.filter(P => P.key === key);
   const info = partInfo(group[0].m.name), n = new Set(group.map(P => P.m.name)).size;
   card.querySelector('.ch').textContent = info.ch;
   card.querySelector('.n').textContent = /#\d+$/.test(group[0].m.name) && n > 1 ? '× ' + n : '';
@@ -667,7 +746,12 @@ addEventListener('pointerup', e => {
 addEventListener('pointercancel', () => { down = null; document.body.classList.remove('grabbing'); });
 canvas.addEventListener('pointerleave', () => { hoverAt = null; setHover(null); });
 controls.addEventListener('start', () => { if (mode !== 'build') { userTook = true; focus = null; blend = null; } });
-if (matchMedia('(pointer: coarse)').matches) document.getElementById('xhint').textContent = 'Drag to rotate · pinch to zoom · two fingers to pan · tap a part to see what it is';
+if (matchMedia('(pointer: coarse)').matches) {
+  const xh = document.getElementById('xhint');
+  xh.textContent = 'Drag to rotate · pinch to zoom · two fingers to pan · tap a part to see what it is';
+  xh.dataset.es = 'Arrastra para girar · pellizca para hacer zoom · dos dedos para desplazar · toca una pieza para ver qué es';
+  I18N.apply();
+}
 
 // Between the two views.
 function enterBuild() {
@@ -769,7 +853,7 @@ loadModel().then(model => {
   window.__ready = true;
   lastNow = performance.now();
   if (REC) draw(0, true); else requestAnimationFrame(frame);
-}).catch(() => { document.getElementById('load').textContent = 'Could not load the 3D model.'; tellParent('failed'); });
+}).catch(() => { const l = document.getElementById('load'); l.removeAttribute('data-es'); l.textContent = I18N.t('Could not load the 3D model.', 'No se pudo cargar el modelo 3D.'); tellParent('failed'); });
 </script>
 </body>
 </html>

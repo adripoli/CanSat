@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>RunnySat · Mission</title>
-<meta name="description" content="RunnySat's CanSat missions: measure temperature and pressure on the way down, and use three ground-facing sensors to tell healthy vegetation from dry scrub and burned ground.">
+<title data-es="RunnySat · Misión">RunnySat · Mission</title>
+<meta name="description" content="RunnySat's CanSat missions: measure temperature and pressure on the way down, and use three ground-facing sensors to tell healthy vegetation from dry scrub and burned ground." data-es-content="Las misiones CanSat de RunnySat: medir la temperatura y la presión durante el descenso, y usar tres sensores que miran al suelo para distinguir la vegetación sana del matorral seco y del suelo quemado.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -48,6 +48,11 @@
   .nav .links { margin-left:auto; display:flex; gap:24px; align-items:center; font-size:14px; }
   .nav .links a { text-decoration:none; color:var(--muted); }
   .nav .links a:hover { color:var(--ink); }
+  .lang-toggle { font:inherit; display:inline-flex; align-items:center; padding:2px; border:1px solid var(--line); background:#fff; border-radius:999px; cursor:pointer; font-size:11.5px; font-weight:600; }
+  .lang-toggle:hover { border-color:#aab4be; }
+  .lang-toggle span { padding:3px 7px; border-radius:999px; color:var(--muted); line-height:1.2; }
+  html[lang="es"] .lang-toggle .es, html[lang="en"] .lang-toggle .en { background:var(--ink); color:#fff; }
+  .nav .links a { white-space:nowrap; }
   .nav .links a.pill { color:var(--ink); border:1px solid var(--line); background:#fff; border-radius:999px; padding:6px 14px; }
   .nav .links a.pill:hover { border-color:#aab4be; }
   .nav .links a.pill.here { border-color:rgba(232,119,30,.6); box-shadow:inset 0 0 0 1px rgba(232,119,30,.25); }
@@ -191,6 +196,16 @@
     #explore { padding:64px 16px; }
     footer { padding:20px 16px; }
   }
+  @media (max-width: 899px) {
+    .lang-toggle span { padding:3px 6px; }
+    html[lang="es"] .lang-toggle .es, html[lang="en"] .lang-toggle .en { display:none; }
+    html .lang-toggle span { background:none; color:var(--ink); }
+  }
+  @media (max-width: 480px) {
+    .nav .links { gap:10px !important; }
+    .nav .links .hide-xs { display:none; }
+    .nav .links a.pill { padding:5px 10px; }
+  }
 </style>
 <script type="importmap">{ "imports": { "three": "./assets/three.module.min.js" } }</script>
 <link rel="modulepreload" href="./assets/three.module.min.js">
@@ -198,160 +213,161 @@
 </head>
 <body>
 <div id="stage" aria-hidden="true"></div>
-<div id="fallback">The 3D scene needs WebGL, which isn't available in this browser. The mission is still described below.</div>
+<div id="fallback" data-es="La escena 3D necesita WebGL, que no está disponible en este navegador. La misión sigue descrita abajo.">The 3D scene needs WebGL, which isn't available in this browser. The mission is still described below.</div>
 <div id="labels" aria-hidden="true"></div>
 
 <header class="nav" id="nav">
   <a class="brand" href="index.html"><i></i>RunnySat</a>
-  <nav class="links" aria-label="Sections">
-    <a href="#primary" class="hide-sm">Primary</a>
-    <a href="#secondary" class="hide-sm">Secondary</a>
-    <a href="index.html#build" class="hide-sm">The build</a>
-    <a href="visualizer.html" class="pill">3D visualizer</a>
-    <a href="mission.html" class="pill here" aria-current="page"><span class="dot"></span>Mission</a>
+  <nav class="links" aria-label="Sections" data-es-aria-label="Secciones">
+    <a href="#primary" class="hide-sm" data-es="Principal">Primary</a>
+    <a href="#secondary" class="hide-sm" data-es="Secundaria">Secondary</a>
+    <a href="index.html#build" class="hide-sm" data-es="El montaje">The build</a>
+    <a href="visualizer.html" class="pill" data-es="Visor 3D">3D visualizer</a>
+    <a href="mission.html" class="pill here" aria-current="page" data-es="&lt;span class=&quot;dot&quot;&gt;&lt;/span&gt;Misión"><span class="dot"></span>Mission</a>
+    <button type="button" class="lang-toggle" data-lang-toggle><span class="es">ES</span><span class="en">EN</span></button>
   </nav>
 </header>
 <div id="progress"></div>
 
-<aside id="hud" class="wait payload" aria-label="Live readout (simulated)">
-  <div class="hd"><b id="hudTitle">Payload · 1 s summary</b><span>simulated</span></div>
-  <div class="modes" data-for="payload" role="group" aria-label="Sensor view">
+<aside id="hud" class="wait payload" aria-label="Live readout (simulated)" data-es-aria-label="Lectura en directo (simulada)">
+  <div class="hd"><b id="hudTitle">Payload · 1 s summary</b><span data-es="simulado">simulated</span></div>
+  <div class="modes" data-for="payload" role="group" aria-label="Sensor view" data-es-aria-label="Vista del sensor">
     <button type="button" data-mode="ndvi" style="--c:var(--cam)">NDVI</button>
-    <button type="button" data-mode="thermal" style="--c:var(--therm)">Thermal</button>
-    <button type="button" data-mode="rededge" style="--c:var(--spec)">Red edge</button>
-    <button type="button" data-mode="fused" style="--c:var(--ink)">Fused</button>
+    <button type="button" data-mode="thermal" style="--c:var(--therm)" data-es="Térmica">Thermal</button>
+    <button type="button" data-mode="rededge" style="--c:var(--spec)" data-es="Borde rojo">Red edge</button>
+    <button type="button" data-mode="fused" style="--c:var(--ink)" data-es="Combinada">Fused</button>
   </div>
   <dl class="rows" data-for="payload">
-    <dt class="keep">Vegetation</dt><dd class="keep" id="rVeg">–</dd>
-    <dt>Mean NDVI</dt><dd id="rNdvi">–</dd>
-    <dt>Red-edge strength</dt><dd id="rRe">–</dd>
-    <dt>Plant / ground</dt><dd id="rTemp">–</dd>
-    <dt class="opt">NDVI alone says</dt><dd class="opt" id="rAlone">–</dd>
-    <dt class="keep">Class</dt><dd class="keep"><span class="cls" id="rClass"><i></i><span>–</span></span></dd>
+    <dt class="keep" data-es="Vegetación">Vegetation</dt><dd class="keep" id="rVeg">–</dd>
+    <dt data-es="NDVI medio">Mean NDVI</dt><dd id="rNdvi">–</dd>
+    <dt data-es="Intensidad del borde rojo">Red-edge strength</dt><dd id="rRe">–</dd>
+    <dt data-es="Planta / suelo">Plant / ground</dt><dd id="rTemp">–</dd>
+    <dt class="opt" data-es="Solo con NDVI">NDVI alone says</dt><dd class="opt" id="rAlone">–</dd>
+    <dt class="keep" data-es="Clase">Class</dt><dd class="keep"><span class="cls" id="rClass"><i></i><span>–</span></span></dd>
   </dl>
   <div data-for="payload" class="opt" id="hudKey"></div>
   <dl class="rows" data-for="telemetry">
-    <dt class="keep">Altitude</dt><dd class="keep" id="tAlt">–</dd>
-    <dt class="keep">Pressure</dt><dd class="keep" id="tP">–</dd>
-    <dt>Temperature</dt><dd id="tT">–</dd>
-    <dt>Descent rate</dt><dd id="tV">–</dd>
-    <dt>Flight time</dt><dd id="tTime">–</dd>
+    <dt class="keep" data-es="Altitud">Altitude</dt><dd class="keep" id="tAlt">–</dd>
+    <dt class="keep" data-es="Presión">Pressure</dt><dd class="keep" id="tP">–</dd>
+    <dt data-es="Temperatura">Temperature</dt><dd id="tT">–</dd>
+    <dt data-es="Velocidad de descenso">Descent rate</dt><dd id="tV">–</dd>
+    <dt data-es="Tiempo de vuelo">Flight time</dt><dd id="tTime">–</dd>
   </dl>
-  <div class="ft" data-for="payload">Sent to the XIAO ESP32S3 every second, which adds GPS position and BMP280 altitude and transmits over 433 MHz LoRa.</div>
-  <div class="ft" data-for="telemetry"><span>Example packet, tagged with the team ID</span><br><span class="pkt" id="tPkt">–</span></div>
+  <div class="ft" data-for="payload" data-es="Se envía cada segundo al XIAO ESP32S3, que añade la posición GPS y la altitud del BMP280 y lo transmite por LoRa a 433 MHz.">Sent to the XIAO ESP32S3 every second, which adds GPS position and BMP280 altitude and transmits over 433 MHz LoRa.</div>
+  <div class="ft" data-for="telemetry"><span data-es="Paquete de ejemplo, etiquetado con el ID del equipo">Example packet, tagged with the team ID</span><br><span class="pkt" id="tPkt">–</span></div>
 </aside>
 
 <main id="top">
   <section class="sec" id="hero" data-shot="sensors" data-hud="payload">
     <div class="col"><div class="panel">
-      <div class="eyebrow">CanSat 2025–2026 · Missions</div>
-      <h1>The mission</h1>
-      <p class="lead">Every team measures <strong>air temperature and pressure</strong> on the way down. RunnySat also points <strong>three sensors at the ground</strong> to tell healthy vegetation from dry, fire-prone scrub and burned earth.</p>
+      <div class="eyebrow" data-es="CanSat 2025–2026 · Misiones">CanSat 2025–2026 · Missions</div>
+      <h1 data-es="La misión">The mission</h1>
+      <p class="lead" data-es="Todos los equipos miden la &lt;strong&gt;temperatura y la presión del aire&lt;/strong&gt; durante el descenso. RunnySat además apunta &lt;strong&gt;tres sensores al suelo&lt;/strong&gt; para distinguir la vegetación sana del matorral seco y propenso a arder, y de la tierra quemada.">Every team measures <strong>air temperature and pressure</strong> on the way down. RunnySat also points <strong>three sensors at the ground</strong> to tell healthy vegetation from dry, fire-prone scrub and burned earth.</p>
       <div class="btns">
-        <a class="btn primary" href="#primary">Primary mission ↓</a>
-        <a class="btn" href="#secondary">Secondary mission</a>
+        <a class="btn primary" href="#primary" data-es="Misión principal ↓">Primary mission ↓</a>
+        <a class="btn" href="#secondary" data-es="Misión secundaria">Secondary mission</a>
       </div>
       <div class="facts">
-        <div><b>~1,000 m</b>release altitude</div>
-        <div><b>8–12 m/s</b>descent</div>
-        <div><b>≤ 120 s</b>flight</div>
-        <div><b>20 g</b>to survive</div>
+        <div data-es="&lt;b&gt;~1.000 m&lt;/b&gt;altitud de lanzamiento"><b>~1,000 m</b>release altitude</div>
+        <div data-es="&lt;b&gt;8–12 m/s&lt;/b&gt;de descenso"><b>8–12 m/s</b>descent</div>
+        <div data-es="&lt;b&gt;≤ 120 s&lt;/b&gt;de vuelo"><b>≤ 120 s</b>flight</div>
+        <div data-es="&lt;b&gt;20 g&lt;/b&gt;que soportar"><b>20 g</b>to survive</div>
       </div>
     </div></div>
   </section>
 
   <section class="sec" id="primary" data-shot="primary" data-hud="telemetry">
     <div class="col"><div class="panel">
-      <div class="eyebrow">01 · Primary mission</div>
-      <h2>Measure the air on the way down, then land safely.</h2>
-      <p>The primary mission is the same for every team: measure air temperature and atmospheric pressure after release and during descent, send the data by telemetry to the ground station, and land safely.</p>
+      <div class="eyebrow" data-es="01 · Misión principal">01 · Primary mission</div>
+      <h2 data-es="Medir el aire durante la bajada y aterrizar sin daños.">Measure the air on the way down, then land safely.</h2>
+      <p data-es="La misión principal es la misma para todos los equipos: medir la temperatura del aire y la presión atmosférica tras la suelta y durante el descenso, enviar los datos por telemetría a la estación de tierra y aterrizar sin daños.">The primary mission is the same for every team: measure air temperature and atmospheric pressure after release and during descent, send the data by telemetry to the ground station, and land safely.</p>
       <div class="stats three">
-        <div><b>~1,000 m</b>release at apogee</div>
-        <div><b>~15 s</b>after liftoff</div>
-        <div><b>4–6</b>CanSats at once</div>
-        <div><b>8–12 m/s</b>recommended descent</div>
-        <div><b>≤ 120 s</b>recommended flight</div>
-        <div><b>20 g</b>to withstand</div>
+        <div data-es="&lt;b&gt;~1.000 m&lt;/b&gt;suelta en el apogeo"><b>~1,000 m</b>release at apogee</div>
+        <div data-es="&lt;b&gt;~15 s&lt;/b&gt;tras el despegue"><b>~15 s</b>after liftoff</div>
+        <div data-es="&lt;b&gt;4–6&lt;/b&gt;CanSats a la vez"><b>4–6</b>CanSats at once</div>
+        <div data-es="&lt;b&gt;8–12 m/s&lt;/b&gt;de descenso recomendado"><b>8–12 m/s</b>recommended descent</div>
+        <div data-es="&lt;b&gt;≤ 120 s&lt;/b&gt;de vuelo recomendado"><b>≤ 120 s</b>recommended flight</div>
+        <div data-es="&lt;b&gt;20 g&lt;/b&gt;que resistir"><b>20 g</b>to withstand</div>
       </div>
       <dl class="subs">
-        <dt>Sensor</dt><dd>BMP280 for temperature and pressure</dd>
-        <dt>Logging</dt><dd>The XIAO ESP32S3 flight computer writes every reading to a microSD card</dd>
-        <dt>Telemetry</dt><dd>433 MHz LoRa, each packet tagged with our team ID</dd>
-        <dt>Descent</dt><dd>Bright ripstop nylon parachute, sized for the recommended speed</dd>
-        <dt>Recovery</dt><dd>GPS module and buzzer</dd>
+        <dt data-es="Sensor">Sensor</dt><dd data-es="BMP280 para temperatura y presión">BMP280 for temperature and pressure</dd>
+        <dt data-es="Registro">Logging</dt><dd data-es="El ordenador de vuelo XIAO ESP32S3 guarda cada lectura en una tarjeta microSD">The XIAO ESP32S3 flight computer writes every reading to a microSD card</dd>
+        <dt data-es="Telemetría">Telemetry</dt><dd data-es="LoRa a 433 MHz, cada paquete etiquetado con el ID de nuestro equipo">433 MHz LoRa, each packet tagged with our team ID</dd>
+        <dt data-es="Descenso">Descent</dt><dd data-es="Paracaídas de nailon ripstop de color vivo, dimensionado para la velocidad recomendada">Bright ripstop nylon parachute, sized for the recommended speed</dd>
+        <dt data-es="Recuperación">Recovery</dt><dd data-es="Módulo GPS y zumbador">GPS module and buzzer</dd>
       </dl>
       <div class="formula">
         <div class="eq">h = 44330 · [1 − (p / p₀)<sup>1/5.255</sup>] m</div>
-        <div class="small">After the flight we calculate altitude from pressure with the barometric formula, then plot altitude against time and temperature against altitude.</div>
+        <div class="small" data-es="Tras el vuelo calculamos la altitud a partir de la presión con la fórmula barométrica, y representamos la altitud frente al tiempo y la temperatura frente a la altitud.">After the flight we calculate altitude from pressure with the barometric formula, then plot altitude against time and temperature against altitude.</div>
       </div>
-      <p class="src">Source: Bases del Desafío CanSat 2025–2026.</p>
+      <p class="src" data-es="Fuente: Bases del Desafío CanSat 2025–2026.">Source: Bases del Desafío CanSat 2025–2026.</p>
     </div></div>
   </section>
 
   <section class="sec" id="secondary" data-shot="objective" data-hud="payload" data-mode="fused">
     <div class="col"><div class="panel">
-      <div class="eyebrow">02 · Secondary mission · objective</div>
-      <h2>Healthy, dry, or burned?</h2>
-      <p>Our secondary mission tests whether a low-cost CanSat can tell healthy vegetation from dry, fire-prone scrub and from burned or bare ground during its descent.</p>
+      <div class="eyebrow" data-es="02 · Misión secundaria · objetivo">02 · Secondary mission · objective</div>
+      <h2 data-es="¿Sana, seca o quemada?">Healthy, dry, or burned?</h2>
+      <p data-es="Nuestra misión secundaria comprueba si un CanSat de bajo coste puede distinguir, durante su descenso, la vegetación sana del matorral seco y propenso a arder, y del suelo quemado o desnudo.">Our secondary mission tests whether a low-cost CanSat can tell healthy vegetation from dry, fire-prone scrub and from burned or bare ground during its descent.</p>
       <div class="stats">
-        <div><b>7,958 ha</b>burned in Asturias in 2025, the highest figure since 2020</div>
-        <div><b>2,304 ha</b>in January–March 2026 alone, mostly scrubland</div>
+        <div data-es="&lt;b&gt;7.958 ha&lt;/b&gt;quemadas en Asturias en 2025, la cifra más alta desde 2020"><b>7,958 ha</b>burned in Asturias in 2025, the highest figure since 2020</div>
+        <div data-es="&lt;b&gt;2.304 ha&lt;/b&gt;solo entre enero y marzo de 2026, sobre todo matorral"><b>2,304 ha</b>in January–March 2026 alone, mostly scrubland</div>
       </div>
-      <p>Fire risk depends on how much water live plants hold. The usual greenness index, NDVI, mainly tracks chlorophyll, so a green hillside can still be dry fuel. Any single sensor can also be fooled by shadows, wet soil, paint or artificial turf.</p>
-      <p class="note">So we combine three independent measurements, and classify the ground only when they agree.</p>
+      <p data-es="El riesgo de incendio depende de cuánta agua retienen las plantas vivas. El índice de verdor habitual, el NDVI, sigue sobre todo la clorofila, así que una ladera verde puede ser combustible seco. Además, cualquier sensor por sí solo puede confundirse con sombras, suelo mojado, pintura o césped artificial.">Fire risk depends on how much water live plants hold. The usual greenness index, NDVI, mainly tracks chlorophyll, so a green hillside can still be dry fuel. Any single sensor can also be fooled by shadows, wet soil, paint or artificial turf.</p>
+      <p class="note" data-es="Por eso combinamos tres medidas independientes y solo clasificamos el suelo cuando coinciden.">So we combine three independent measurements, and classify the ground only when they agree.</p>
       <div class="legend">
-        <span><i style="--c:var(--healthy)"></i>Healthy vegetation</span>
-        <span><i style="--c:var(--dry)"></i>Stressed / dry scrub</span>
-        <span><i style="--c:var(--burned)"></i>Burned or bare ground</span>
-        <span><i style="--c:var(--nope)"></i>No agreement</span>
+        <span data-es="&lt;i style=&quot;--c:var(--healthy)&quot;&gt;&lt;/i&gt;Vegetación sana"><i style="--c:var(--healthy)"></i>Healthy vegetation</span>
+        <span data-es="&lt;i style=&quot;--c:var(--dry)&quot;&gt;&lt;/i&gt;Matorral estresado / seco"><i style="--c:var(--dry)"></i>Stressed / dry scrub</span>
+        <span data-es="&lt;i style=&quot;--c:var(--burned)&quot;&gt;&lt;/i&gt;Suelo quemado o desnudo"><i style="--c:var(--burned)"></i>Burned or bare ground</span>
+        <span data-es="&lt;i style=&quot;--c:var(--nope)&quot;&gt;&lt;/i&gt;Sin acuerdo"><i style="--c:var(--nope)"></i>No agreement</span>
       </div>
-      <p class="src">Fire figures: <a href="https://www.ecoticias.com/medio-ambiente/incendios-forestales-asturias-2026" target="_blank" rel="noopener">ECOticias, 17 Apr 2026</a>.</p>
+      <p class="src" data-es="Datos de incendios: &lt;a href=&quot;https://www.ecoticias.com/medio-ambiente/incendios-forestales-asturias-2026&quot; target=&quot;_blank&quot; rel=&quot;noopener&quot;&gt;ECOticias, 17 abr 2026&lt;/a&gt;.">Fire figures: <a href="https://www.ecoticias.com/medio-ambiente/incendios-forestales-asturias-2026" target="_blank" rel="noopener">ECOticias, 17 Apr 2026</a>.</p>
     </div></div>
   </section>
 
   <section class="sec" id="approach" data-shot="approach" data-hud="payload">
     <div class="col"><div class="panel">
-      <div class="eyebrow">03 · Secondary mission · three sensors</div>
-      <h2>Three ways of looking at the same ground.</h2>
-      <p>Three downward-facing sensors look through the base of the can. Each one tests something different, so it takes more than a green colour to pass all three.</p>
-      <div class="sensors" role="group" aria-label="Show a sensor's view">
-        <button type="button" class="sensor" data-mode="ndvi" style="--c:var(--cam)"><i></i><b>Pi Camera Module 2 NoIR + blue filter</b><span>An NDVI map from a single camera: near-infrared and blue light at once.</span></button>
-        <button type="button" class="sensor" data-mode="rededge" style="--c:var(--spec)"><i></i><b>SparkFun AS7263 spectrometer</b><span>Six bands from 610 to 860 nm measure the chlorophyll red edge.</span></button>
-        <button type="button" class="sensor" data-mode="thermal" style="--c:var(--therm)"><i></i><b>Pimoroni MLX90640 thermal camera</b><span>32 × 24 px. In sunshine, living plants stay cooler than bare ground through evaporative cooling.</span></button>
+      <div class="eyebrow" data-es="03 · Misión secundaria · tres sensores">03 · Secondary mission · three sensors</div>
+      <h2 data-es="Tres formas de mirar el mismo suelo.">Three ways of looking at the same ground.</h2>
+      <p data-es="Tres sensores orientados hacia abajo miran a través de la base de la lata. Cada uno comprueba algo distinto, así que hace falta algo más que un color verde para superar los tres.">Three downward-facing sensors look through the base of the can. Each one tests something different, so it takes more than a green colour to pass all three.</p>
+      <div class="sensors" role="group" aria-label="Show a sensor's view" data-es-aria-label="Ver lo que ve un sensor">
+        <button type="button" class="sensor" data-mode="ndvi" style="--c:var(--cam)" data-es="&lt;i&gt;&lt;/i&gt;&lt;b&gt;Pi Camera Module 2 NoIR + filtro azul&lt;/b&gt;&lt;span&gt;Un mapa NDVI con una sola cámara: infrarrojo cercano y luz azul a la vez.&lt;/span&gt;"><i></i><b>Pi Camera Module 2 NoIR + blue filter</b><span>An NDVI map from a single camera: near-infrared and blue light at once.</span></button>
+        <button type="button" class="sensor" data-mode="rededge" style="--c:var(--spec)" data-es="&lt;i&gt;&lt;/i&gt;&lt;b&gt;Espectrómetro SparkFun AS7263&lt;/b&gt;&lt;span&gt;Seis bandas de 610 a 860 nm miden el borde rojo de la clorofila.&lt;/span&gt;"><i></i><b>SparkFun AS7263 spectrometer</b><span>Six bands from 610 to 860 nm measure the chlorophyll red edge.</span></button>
+        <button type="button" class="sensor" data-mode="thermal" style="--c:var(--therm)" data-es="&lt;i&gt;&lt;/i&gt;&lt;b&gt;Cámara térmica Pimoroni MLX90640&lt;/b&gt;&lt;span&gt;32 × 24 px. Al sol, las plantas vivas se mantienen más frescas que el suelo desnudo gracias a la evaporación.&lt;/span&gt;"><i></i><b>Pimoroni MLX90640 thermal camera</b><span>32 × 24 px. In sunshine, living plants stay cooler than bare ground through evaporative cooling.</span></button>
       </div>
-      <p class="small">Click a sensor to see what it sees on the ground.</p>
+      <p class="small" data-es="Pulsa un sensor para ver lo que ve en el suelo.">Click a sensor to see what it sees on the ground.</p>
     </div></div>
   </section>
 
   <section class="sec" id="data" data-shot="data" data-hud="payload">
     <div class="col"><div class="panel">
-      <div class="eyebrow">04 · Secondary mission · data path</div>
-      <h2>Sort the view, send a summary.</h2>
-      <p>A Raspberry Pi Zero 2 W, on its own switched 5 V supply, combines the three readings and sorts the view into healthy vegetation, stressed vegetation and burned or bare ground.</p>
+      <div class="eyebrow" data-es="04 · Misión secundaria · ruta de los datos">04 · Secondary mission · data path</div>
+      <h2 data-es="Clasificar la vista, enviar un resumen.">Sort the view, send a summary.</h2>
+      <p data-es="Una Raspberry Pi Zero 2 W, con su propia alimentación conmutada de 5 V, combina las tres lecturas y clasifica la vista en vegetación sana, vegetación estresada y suelo quemado o desnudo.">A Raspberry Pi Zero 2 W, on its own switched 5 V supply, combines the three readings and sorts the view into healthy vegetation, stressed vegetation and burned or bare ground.</p>
       <ol class="flow">
-        <li><b>Three sensors</b>NoIR camera · AS7263 · MLX90640</li>
-        <li data-via="raw readings"><b>Raspberry Pi Zero 2 W</b>Combines and classifies the view</li>
-        <li data-via="1 s summary"><b>XIAO ESP32S3 flight computer</b>Adds GPS position and BMP280 altitude</li>
-        <li data-via="433 MHz LoRa"><b>Ground station</b></li>
+        <li data-es="&lt;b&gt;Tres sensores&lt;/b&gt;Cámara NoIR · AS7263 · MLX90640"><b>Three sensors</b>NoIR camera · AS7263 · MLX90640</li>
+        <li data-via="raw readings" data-es-data-via="lecturas en bruto" data-es="&lt;b&gt;Raspberry Pi Zero 2 W&lt;/b&gt;Combina y clasifica la vista"><b>Raspberry Pi Zero 2 W</b>Combines and classifies the view</li>
+        <li data-via="1 s summary" data-es-data-via="resumen cada 1 s" data-es="&lt;b&gt;Ordenador de vuelo XIAO ESP32S3&lt;/b&gt;Añade la posición GPS y la altitud del BMP280"><b>XIAO ESP32S3 flight computer</b>Adds GPS position and BMP280 altitude</li>
+        <li data-via="433 MHz LoRa" data-es="&lt;b&gt;Estación de tierra&lt;/b&gt;"><b>Ground station</b></li>
       </ol>
-      <div class="tags"><span>% vegetation</span><span>mean NDVI</span><span>red-edge strength</span><span>plant vs. ground temp</span><span>class</span></div>
-      <p class="small" style="margin-top:14px">Raw images stay on the Pi's microSD card for post-flight analysis, because the radio cannot carry them.</p>
+      <div class="tags"><span data-es="% de vegetación">% vegetation</span><span data-es="NDVI medio">mean NDVI</span><span data-es="intensidad del borde rojo">red-edge strength</span><span data-es="temp. planta vs. suelo">plant vs. ground temp</span><span data-es="clase">class</span></div>
+      <p class="small" style="margin-top:14px" data-es="Las imágenes en bruto se quedan en la tarjeta microSD de la Pi para analizarlas tras el vuelo, porque la radio no puede transmitirlas.">Raw images stay on the Pi's microSD card for post-flight analysis, because the radio cannot carry them.</p>
     </div></div>
   </section>
 
   <section class="sec" id="validation" data-shot="sensors2" data-hud="payload" data-mode="fused">
     <div class="col"><div class="panel">
-      <div class="eyebrow">05 · Secondary mission · validation</div>
-      <h2>Test it on decoys before it flies.</h2>
-      <p>Before launch we will calibrate the camera with a grey card and test the system on five targets. We expect only healthy plants to pass all three tests.</p>
-      <div class="tags"><span>green gorse</span><span>dried gorse</span><span>charred soil</span><span>artificial turf</span><span>green-painted card</span></div>
-      <h3>The mission succeeds if</h3>
+      <div class="eyebrow" data-es="05 · Misión secundaria · validación">05 · Secondary mission · validation</div>
+      <h2 data-es="Probarlo con señuelos antes de volar.">Test it on decoys before it flies.</h2>
+      <p data-es="Antes del lanzamiento calibraremos la cámara con una carta gris y probaremos el sistema con cinco objetivos. Esperamos que solo las plantas sanas superen las tres pruebas.">Before launch we will calibrate the camera with a grey card and test the system on five targets. We expect only healthy plants to pass all three tests.</p>
+      <div class="tags"><span data-es="tojo verde">green gorse</span><span data-es="tojo seco">dried gorse</span><span data-es="suelo carbonizado">charred soil</span><span data-es="césped artificial">artificial turf</span><span data-es="cartulina pintada de verde">green-painted card</span></div>
+      <h3 data-es="La misión tiene éxito si">The mission succeeds if</h3>
       <ul class="checks">
-        <li>the three-sensor classification gives fewer false positives than NDVI alone, and</li>
-        <li>the flight data show the altitude at which a CanSat-sized probe can still detect these signs.</li>
+        <li data-es="la clasificación con tres sensores da menos falsos positivos que el NDVI solo, y">the three-sensor classification gives fewer false positives than NDVI alone, and</li>
+        <li data-es="los datos de vuelo muestran a qué altitud una sonda del tamaño de un CanSat aún puede detectar estas señales.">the flight data show the altitude at which a CanSat-sized probe can still detect these signs.</li>
       </ul>
-      <p class="note">This is a proof of concept, not a fire-prediction system.</p>
-      <p class="small">In the scene, watch the turf pitch drift under the can: NDVI alone calls it vegetation, but the red edge and thermal tests don't agree.</p>
+      <p class="note" data-es="Es una prueba de concepto, no un sistema de predicción de incendios.">This is a proof of concept, not a fire-prediction system.</p>
+      <p class="small" data-es="En la escena, fíjate en el campo de césped artificial que pasa bajo la lata: el NDVI solo lo toma por vegetación, pero las pruebas del borde rojo y térmica no coinciden.">In the scene, watch the turf pitch drift under the can: NDVI alone calls it vegetation, but the red edge and thermal tests don't agree.</p>
     </div></div>
   </section>
 </main>
@@ -359,21 +375,22 @@
 <section id="explore">
   <div class="inner">
     <div>
-      <div class="eyebrow">The hardware</div>
-      <h2>See what flies.</h2>
-      <p>Every sensor on this page is in the can. Watch all 36 parts go together, or take the model apart yourself.</p>
+      <div class="eyebrow" data-es="El hardware">The hardware</div>
+      <h2 data-es="Mira lo que vuela.">See what flies.</h2>
+      <p data-es="Todos los sensores de esta página van en la lata. Mira cómo se montan sus 36 piezas o desmonta tú mismo el modelo.">Every sensor on this page is in the can. Watch all 36 parts go together, or take the model apart yourself.</p>
     </div>
     <div class="btns">
-      <a class="btn" href="index.html">← How it's built</a>
-      <a class="btn go" href="visualizer.html">Open the 3D visualizer →</a>
+      <a class="btn" href="index.html" data-es="← Cómo se construye">← How it's built</a>
+      <a class="btn go" href="visualizer.html" data-es="Abrir el visor 3D →">Open the 3D visualizer →</a>
     </div>
   </div>
 </section>
 <footer>
-  <span>RunnySat · CanSat missions · technical summary, 17 Nov 2026 · readouts on this page are simulated</span>
-  <a href="#top">Back to top ↑</a>
+  <span data-es="RunnySat · misiones CanSat · resumen técnico, 17 nov 2026 · las lecturas de esta página son simuladas">RunnySat · CanSat missions · technical summary, 17 Nov 2026 · readouts on this page are simulated</span>
+  <a href="#top" data-es="Volver arriba ↑">Back to top ↑</a>
 </footer>
 
+<script src="assets/i18n.js"></script>
 <script type="module">
 import * as THREE from 'three';
 
@@ -480,10 +497,10 @@ const classOf = r => {               // each sensor votes; 0 burned/bare, 1 stre
   return a === b && b === c ? a : 3;  // 3: they disagree, so no class
 };
 const CLASS = [
-  { name: 'Burned / bare', css: 'var(--burned)', rgb: [74, 63, 56] },
-  { name: 'Stressed', css: 'var(--dry)', rgb: [201, 147, 42] },
-  { name: 'Healthy', css: 'var(--healthy)', rgb: [63, 143, 58] },
-  { name: 'No agreement', css: 'var(--nope)', rgb: [154, 163, 173] },
+  { name: ['Burned / bare', 'Quemado / desnudo'], css: 'var(--burned)', rgb: [74, 63, 56] },
+  { name: ['Stressed', 'Estresada'], css: 'var(--dry)', rgb: [201, 147, 42] },
+  { name: ['Healthy', 'Sana'], css: 'var(--healthy)', rgb: [63, 143, 58] },
+  { name: ['No agreement', 'Sin acuerdo'], css: 'var(--nope)', rgb: [154, 163, 173] },
 ];
 function rampColor(stops, x) {
   x = clamp(x);
@@ -593,7 +610,7 @@ function renderKey() {
   if (mode === 'ndvi') hudKey.innerHTML = `<div class="ramp" style="background:linear-gradient(90deg,${NDVI_RAMP.map(([x, c]) => `rgb(${c}) ${x / .85 * 100}%`).join(',')})"></div><div class="ramp-l"><span>NDVI 0</span><span>0.4</span><span>0.85</span></div>`;
   else if (mode === 'thermal') hudKey.innerHTML = `<div class="ramp" style="background:linear-gradient(90deg,${HEAT_RAMP.map(([x, c]) => `rgb(${c}) ${x * 100}%`).join(',')})"></div><div class="ramp-l"><span>${T_MIN} °C</span><span>30</span><span>${T_MAX} °C</span></div>`;
   else if (mode === 'rededge') hudKey.innerHTML = `<div class="bands">${BANDS.map(() => '<i></i>').join('')}</div><div class="bands-l">${BANDS.map(b => `<span>${b}</span>`).join('')}</div>`;
-  else hudKey.innerHTML = `<div class="ramp" style="background:linear-gradient(90deg,var(--healthy) 0 25%,var(--dry) 25% 50%,var(--burned) 50% 75%,var(--nope) 75%)"></div><div class="ramp-l"><span>healthy</span><span>stressed</span><span>bare</span><span>no agreement</span></div>`;
+  else hudKey.innerHTML = `<div class="ramp" style="background:linear-gradient(90deg,var(--healthy) 0 25%,var(--dry) 25% 50%,var(--burned) 50% 75%,var(--nope) 75%)"></div><div class="ramp-l"><span>${I18N.t('healthy', 'sana')}</span><span>${I18N.t('stressed', 'estresada')}</span><span>${I18N.t('bare', 'desnudo')}</span><span>${I18N.t('no agreement', 'sin acuerdo')}</span></div>`;
   lastSummary = 0;
 }
 // Spectrum at the six AS7263 bands for a given red-edge strength (vegetation: low red, a jump into the near-infrared).
@@ -624,9 +641,9 @@ function summarize(fp, spot) {         // fp/spot: { u0, u1, v0, v1 } and { u, v
   rNdvi.textContent = (nd / n).toFixed(2);
   rRe.textContent = re.toFixed(2);
   rTemp.textContent = (plantN ? (plantT / plantN).toFixed(1) : '–') + ' / ' + (groundN ? (groundT / groundN).toFixed(1) : '–') + ' °C';
-  rAlone.textContent = Math.round(100 * alone / n) + ' % veg.';
+  rAlone.textContent = Math.round(100 * alone / n) + I18N.t(' % veg.', ' % veg.');
   rClass.style.setProperty('--c', CLASS[best].css);
-  rClass.lastChild.textContent = CLASS[best].name;
+  rClass.lastChild.textContent = I18N.t(...CLASS[best].name);
   const bars = hudKey.querySelectorAll('.bands i');
   if (bars.length) { const sp = spectrum(re), mx = Math.max(...sp); bars.forEach((b, i) => b.style.height = (sp[i] / mx * 100).toFixed(0) + '%'); }
   return { re };
@@ -655,13 +672,18 @@ function sectionAt(y) {               // → { i, f }: between section i and i +
   return { i: anchors.length - 1, f: 0 };
 }
 let curSection = -1;
+function setHudTitle() {
+  const sec = sections[Math.min(Math.max(curSection, 0), sections.length - 1)];
+  $('hudTitle').textContent = sec.dataset.hud === 'telemetry' ? I18N.t('Primary · telemetry', 'Principal · telemetría') : I18N.t('Payload · 1 s summary', 'Carga útil · cada 1 s');
+}
+addEventListener('langchange', () => { setHudTitle(); renderKey(); });
 function updateUI(y) {
   const s = sectionAt(y), idx = s.f > .5 ? s.i + 1 : s.i, sec = sections[Math.min(idx, sections.length - 1)];
   if (idx !== curSection) {
     curSection = idx;
     const h = sec.dataset.hud;
     hud.classList.toggle('payload', h === 'payload'); hud.classList.toggle('telemetry', h === 'telemetry');
-    $('hudTitle').textContent = h === 'telemetry' ? 'Primary · telemetry' : 'Payload · 1 s summary';
+    setHudTitle();
     if (sec.dataset.mode && !modePinned) setMode(sec.dataset.mode);
     lastSummary = 0;
   }
@@ -1039,9 +1061,9 @@ if (!renderer) {
 
   /* ---------- labels that follow points in the scene ---------- */
   const LABELS = [
-    { group: 'sensors', text: 'NoIR camera', at: [6, -9.5, -1], c: 'var(--cam)' },
-    { group: 'sensors', text: 'MLX90640 thermal', at: [-19.2, -3, -1], c: 'var(--therm)' },
-    { group: 'sensors', text: 'AS7263 spectrometer', at: [.3, 10.3, -1], c: 'var(--spec)' },
+    { group: 'sensors', text: ['NoIR camera', 'Cámara NoIR'], at: [6, -9.5, -1], c: 'var(--cam)' },
+    { group: 'sensors', text: ['MLX90640 thermal', 'MLX90640 térmica'], at: [-19.2, -3, -1], c: 'var(--therm)' },
+    { group: 'sensors', text: ['AS7263 spectrometer', 'Espectrómetro AS7263'], at: [.3, 10.3, -1], c: 'var(--spec)' },
     { group: 'data', text: 'Raspberry Pi Zero 2 W', at: [.5, -23, 50], c: 'var(--accent)' },
     { group: 'data', text: 'XIAO ESP32S3', at: [-10.6, -14, 90], c: 'var(--accent)' },
     { group: 'data', text: 'BMP280', at: [10.4, -13.5, 62.4], c: 'var(--accent)' },
@@ -1051,8 +1073,9 @@ if (!renderer) {
     L.el = document.createElement('div');
     L.el.className = 'lbl';
     L.el.style.setProperty('--c', L.c);
-    L.el.innerHTML = `<i></i><span>${L.text}</span>`;
+    L.el.innerHTML = `<i></i><span>${typeof L.text === 'string' ? L.text : I18N.t(...L.text)}</span>`;
     labelsEl.appendChild(L.el);
+    if (typeof L.text !== 'string') addEventListener('langchange', () => { L.el.lastChild.textContent = I18N.t(...L.text); });
     L.v = new THREE.Vector3();
     L.shown = 0;
   }
@@ -1345,7 +1368,7 @@ if (!renderer) {
     ready = true;
     stage.classList.remove('hidden');
     if (!playIntro && deepLink) requestAnimationFrame(() => { measure(); deepLink.scrollIntoView(); });
-  }).catch(() => { $('fallback').textContent = 'Could not load the 3D model.'; $('fallback').style.display = 'flex'; finishIntro(); tellParent('failed'); });
+  }).catch(() => { $('fallback').removeAttribute('data-es'); $('fallback').textContent = I18N.t('Could not load the 3D model.', 'No se pudo cargar el modelo 3D.'); $('fallback').style.display = 'flex'; finishIntro(); tellParent('failed'); });
 }
 </script>
 </body>
