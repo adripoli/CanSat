@@ -32,6 +32,35 @@
                font-size:12.5px; color:var(--ink); background:var(--panel); border:1px solid var(--line); border-radius:999px; padding:6px 13px;
                backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); box-shadow:0 4px 16px rgba(20,30,40,.08); white-space:nowrap; }
   body.orbit #orbitHint { opacity:1; transform:translate(-50%, 0); }
+  /* ---------- exploded view at the top: rotate, zoom, click a part ---------- */
+  body.exploring #hero { cursor:grab; touch-action:pan-y; }
+  body.exploring #hero .col { cursor:auto; }
+  body.exploring.over-part #hero { cursor:pointer; }
+  #exploreBar { position:fixed; z-index:4; bottom:26px; left:calc(var(--gutter) + var(--col) + (100vw - var(--gutter) - var(--col) - 120px) / 2);
+                transform:translate(-50%, 8px); opacity:0; pointer-events:none; transition:opacity .35s, transform .35s;
+                display:flex; align-items:center; gap:4px; font-size:12.5px; color:var(--ink); background:var(--panel); border:1px solid var(--line);
+                border-radius:999px; padding:4px 4px 4px 13px; backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+                box-shadow:0 4px 16px rgba(20,30,40,.08); white-space:nowrap; }
+  body.exploring #exploreBar { opacity:1; transform:translate(-50%, 0); pointer-events:auto; }
+  #exploreBar .tip { margin-right:6px; color:var(--muted); }
+  #exploreBar button { all:unset; cursor:pointer; min-width:26px; height:26px; padding:0 8px; box-sizing:border-box; border-radius:999px; text-align:center;
+                       line-height:26px; font-weight:600; color:var(--ink); background:#fff; border:1px solid var(--line); }
+  #exploreBar button:hover { border-color:#aab4be; }
+  #exploreBar button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  #partCard { position:fixed; z-index:6; top:84px; right:28px; width:min(320px, calc(100vw - 32px)); background:rgba(255,255,255,.94);
+              backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); border:1px solid rgba(232,119,30,.55); border-radius:14px;
+              padding:16px 18px 18px; box-shadow:0 10px 34px rgba(20,30,40,.14); opacity:0; transform:translateY(-8px); pointer-events:none;
+              transition:opacity .25s, transform .3s cubic-bezier(.2,.8,.2,1); }
+  #partCard.show { opacity:1; transform:none; pointer-events:auto; }
+  #partCard .meta { display:flex; justify-content:space-between; align-items:baseline; gap:12px; margin:0 26px 6px 0; }
+  #partCard .ch { font-size:11.5px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--accent-ink); }
+  #partCard .n { font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--muted); }
+  #partCard h3 { font-size:18px; line-height:1.25; letter-spacing:-.01em; margin:0 0 6px; font-weight:650; }
+  #partCard p { margin:0; font-size:14.5px; line-height:1.5; color:#2b3946; }
+  #partCard .close { all:unset; cursor:pointer; position:absolute; top:10px; right:10px; width:26px; height:26px; border-radius:50%; text-align:center;
+                     line-height:25px; font-size:17px; color:var(--muted); }
+  #partCard .close:hover { background:#eef1f4; color:var(--ink); }
+  #partCard .close:focus-visible { outline:2px solid var(--accent); }
   #fallback { position:fixed; inset:0; display:none; align-items:center; justify-content:center; color:var(--muted); font-size:15px; padding:24px; text-align:center; }
 
   /* ---------- top bar ---------- */
@@ -50,7 +79,7 @@
   .pill .dot { display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--accent); margin-right:7px; vertical-align:1px; }
   /* leaving for the mission page: the text fades and the can moves to the middle, where the mission page picks it up */
   body.leaving main, body.leaving .nav, body.leaving #rail, body.leaving #progress, body.leaving #orbitHint, body.leaving #loading,
-  body.leaving #explore, body.leaving footer { opacity:0 !important; pointer-events:none; transition:opacity .4s; }
+  body.leaving #explore, body.leaving footer, body.leaving #exploreBar, body.leaving #partCard { opacity:0 !important; pointer-events:none; transition:opacity .4s; }
   body.leaving-all #stage { opacity:0; transition:opacity .35s; }
   /* the mission page, opened inside this one: loaded out of sight, swapped in on the frame where its can matches ours */
   #missionFrame { position:fixed; left:0; top:0; width:100vw; height:100vh; border:0; margin:0; z-index:100; opacity:0; pointer-events:none; background:transparent; }
@@ -153,6 +182,10 @@
   /* ---------- small screens: model on top, text below ---------- */
   @media (max-width: 899px) {
     #orbitHint { left:50%; bottom:auto; top:74px; }
+    #exploreBar { left:50%; bottom:auto; top:70px; }
+    #exploreBar [data-zoom] { display:none; }
+    #hero .lead .hide-sm { display:none; }
+    #partCard { top:auto; bottom:16px; left:16px; right:16px; width:auto; }
     :root { --col:auto; --gutter:16px; }
     .nav { padding:0 16px; gap:16px; }
     .nav .links { gap:16px; }
@@ -178,7 +211,7 @@
     #explore { padding:64px 16px; }
     footer { padding:20px 16px; }
   }
-  @media (min-width: 900px) { #hero .panel-sm { display:contents; } }
+  @media (min-width: 900px) { #hero .panel-sm { display:contents; } #hero .lead .show-sm { display:none; } }
 </style>
 <script type="importmap">{ "imports": { "three": "./assets/three.module.min.js" } }</script>
 <link rel="modulepreload" href="./assets/three.module.min.js">
@@ -199,6 +232,19 @@
 </header>
 <div id="progress"></div>
 <div id="orbitHint">⟲ Drag to rotate</div>
+<div id="exploreBar" role="group" aria-label="Exploded view controls">
+  <span class="tip">Drag to rotate · Ctrl + scroll or pinch to zoom · click a part</span>
+  <button type="button" data-zoom="-1" aria-label="Zoom out">−</button>
+  <button type="button" data-zoom="1" aria-label="Zoom in">+</button>
+  <button type="button" data-reset aria-label="Reset the view">Reset</button>
+</div>
+<aside id="partCard" aria-live="polite">
+  <button type="button" class="close" aria-label="Close">×</button>
+  <div class="meta"><span class="ch"></span><span class="n"></span></div>
+  <h3></h3>
+  <p></p>
+  <div class="tags"></div>
+</aside>
 
 <ol id="rail" aria-label="Build chapters"></ol>
 
@@ -208,7 +254,7 @@
       <div class="panel-sm">
         <div class="eyebrow">CanSat · construction sequence</div>
         <h1>RunnySat</h1>
-        <p class="lead">A satellite the size of a soft-drink can. <strong>Three ground-facing sensors, two computers, GPS and a LoRa downlink</strong>, packed into a printed shell. Scroll down and watch it go together, part by part.</p>
+        <p class="lead">A satellite the size of a soft-drink can. <strong>Three ground-facing sensors, two computers, GPS and a LoRa downlink</strong>, packed into a printed shell. <span class="hide-sm">Pull it apart here: drag to turn it, zoom in, and click any part to see what it does. Then scroll</span><span class="show-sm">Tap any part to see what it does, then scroll</span> down and watch it go together, part by part.</p>
         <div class="btns">
           <a class="btn primary" href="#build">See how it's built ↓</a>
           <a class="btn" href="visualizer.html">Open the 3D visualizer</a>
@@ -514,6 +560,80 @@ function schedule(name) {
 // Shell body goes see-through while the sled is lowered in.
 const shellFade = t => t < 47.8 ? 1 : t < 62 ? 1 - .8 * easeInOut(ramp(t, 47.8, .8)) : .2 + .8 * easeInOut(ramp(t, 62, 1.5));
 
+/* ================= exploded view (the top of the page) ================= */
+// Where each part sits when the finished can is pulled apart, as an offset in mm from where it is fitted, and when it
+// sets off (0…EXP_SPREAD of the way through the explosion: the outside comes off first, the sensor base last).
+// The base and its sensors stay at the bottom, the sled above them, the electronics fanned out along y above that
+// (each board with its parts lifted off the side they are fitted to), then the deck, the cap and the antenna.
+// The shell body steps aside so nothing is hidden inside it.
+const EXP_SPREAD = .55, ZE = 190;
+function explodeOf(name) {
+  const is = p => name.startsWith(p), e = (x, y, z, d) => ({ off: [x, y, z], d });
+  if (is('433 MHz')) return e(0, 0, 300, 0);
+  if (is('SHELL Top')) return e(0, 0, 262, .05);
+  if (is('SHELL Body')) return e(-125, -65, 0, .1);
+  if (is('PRINT Antenna deck')) return e(0, 0, 205, .17);
+  if (is('SMA')) return e(0, 0, 232, .19);
+  if (is('GPS patch')) return e(0, 0, 222, .19);
+  if (is('SCREW antenna deck')) return e(0, 0, 232, .21);
+  if (is('PRINT Sled')) return e(0, 0, 88, .26);
+  if (is('PCB B')) return e(0, -38, ZE, .28);
+  if (is('PCB A')) return e(0, 34, ZE, .28);
+  if (is('B - ')) return e(0, -14, ZE, .31);
+  if (is('A - ')) return e(0, 12, ZE, .31);
+  if (is('Raspberry')) return e(0, -70, ZE, .3);
+  if (is('SCREW Pi')) return e(0, -92, ZE, .34);
+  if (is('18650 holder')) return e(0, 62, ZE, .3);
+  if (is('CELL')) return e(0, 95, ZE, .33);
+  if (is('CABLE TIE')) return e(0, 128, ZE, .36);
+  if (is('PETG')) return e(0, 0, 20, .42);
+  if (is('Pi Camera') || is('MLX90640') || is('AS7263')) return e(0, 0, 34, .42);
+  if (is('PRINT MLX clamp')) return e(0, 0, 46, .46);
+  if (is('SCREW camera') || is('SCREW AS7263')) return e(0, 0, 52, .5);
+  if (is('SCREW MLX')) return e(0, 0, 60, .5);
+  return e(0, 0, 0, 0);
+}
+// Parts that are picked together: the pieces of one component, and every screw or tie of one set.
+const pickKey = name => name.startsWith('B - U8') ? 'B - U8' : name.replace(/#\d+$/, '');
+// What the card says when a part is clicked: [match, chapter, title, text, tags].
+const PART_INFO = [
+  [/^SHELL Body/, '05 · Shell', 'Grated shell body', 'The outer wall of the can. It comes down over the sensor base and twists to lock its bayonet. The gratings keep it light and let air reach the sensors.', ['3D printed', 'bayonet lock', 'Ø66 mm']],
+  [/^SHELL Top/, '06 · Close', 'Threaded top cap', 'Screws onto the body to close the can, and clamps the antenna deck down at the same time.', ['3D printed', 'threaded']],
+  [/^PRINT Sensor base/, '01 · Sensor base', 'Printed sensor base', 'The bottom of the can. It replaces the old shell bottom and carries all three downward-looking sensors, so they see the ground during the descent.', ['3D printed', 'Ø66 mm']],
+  [/^PETG/, '01 · Sensor base', 'PETG window', 'A thin clear disc over the camera opening. It protects the lens while letting it look straight down through the base.', ['16 × 0.5 mm', 'PETG']],
+  [/^Pi Camera/, '01 · Sensor base', 'Pi Camera Module 2 NoIR', 'A camera with no infrared-blocking filter, fitted with a blue gel. It sees near-infrared and blue light at once, the classic setup for NDVI-style vegetation imaging.', ['SC0024', 'NoIR', 'blue gel']],
+  [/^SCREW camera/, '01 · Sensor base', 'Camera screws', 'Four self-tapping screws that hold the Pi Camera down on the sensor base.', ['M2×6', 'self-tapping']],
+  [/^MLX90640/, '01 · Sensor base', 'MLX90640 thermal camera', 'A 32 × 24 pixel thermal imager. Plastic blocks thermal infrared, so it looks through an open hole in the base instead of a window.', ['Pimoroni PIM365', '19 × 22 mm', '55° FOV']],
+  [/^PRINT MLX clamp/, '01 · Sensor base', 'MLX clamp bar', 'A printed bar that presses the thermal camera flat against the base.', ['3D printed']],
+  [/^SCREW MLX/, '01 · Sensor base', 'Clamp screws', 'Two self-tapping screws that pull the clamp bar down over the thermal camera.', ['M2×8', 'self-tapping']],
+  [/^AS7263/, '01 · Sensor base', 'AS7263 NIR spectrometer', 'Measures six near-infrared bands, adding spectral readings of the ground to the two images.', ['SparkFun SEN-14351', '25.4 × 25.4 mm']],
+  [/^SCREW AS7263/, '01 · Sensor base', 'Spectrometer screws', 'Two M3 screws that hold the spectrometer board and finish the sensor base.', ['M3×8']],
+  [/^PRINT Sled/, '02 · Sled', 'The sled', 'The backbone of the electronics. The Raspberry Pi mounts on one side and the battery on the other, and both PCBs slide down into it.', ['3D printed']],
+  [/^Raspberry/, '02 · Sled', 'Raspberry Pi Zero 2 W', 'The payload computer that runs the cameras and the spectrometer, with its microSD card already fitted.', ['Pi Zero 2 W', 'microSD']],
+  [/^SCREW Pi/, '02 · Sled', 'Pi screws', 'Four self-tapping screws, heads on the Pi, that hold it onto the posts inside the sled.', ['M2.5×4', 'self-tapping']],
+  [/^18650 holder/, '02 · Sled', '18650 battery holder', 'Sits between the sled’s guide rails, on the opposite face from the Pi.', ['LX3214', '77.5 × 21 × 21.5 mm']],
+  [/^CELL/, '02 · Sled', 'Samsung 30Q cell', 'One 18650 lithium-ion cell powers the whole can.', ['INR18650-30Q', 'Ø18.33 × 64.85 mm', 'Li-ion']],
+  [/^CABLE TIE/, '02 · Sled', 'Cable ties', 'Two ties wrap the holder and the cell so nothing shifts on landing.', ['2.5 mm']],
+  [/^PCB B/, '03 · PCB B, flight computer', 'Flight computer board', 'Carries the microcontroller, the data logger, the pressure sensor and the LoRa radio. It slides down into the sled right next to the Pi.', ['42 × 77.5 mm']],
+  [/^B - U4/, '03 · PCB B, flight computer', 'Seeed XIAO ESP32S3', 'The flight computer: a small microcontroller on headers that reads the flight sensors, logs the data and sends telemetry.', ['ESP32-S3', '21 × 17.8 mm']],
+  [/^B - U9/, '03 · PCB B, flight computer', 'microSD logger', 'A microSD card module that records the flight data on board, as a backup to the radio link.', ['Joy-IT COM-MSD']],
+  [/^B - U8/, '03 · PCB B, flight computer', 'Ra-02 LoRa radio', 'The 433 MHz telemetry radio, soldered straight onto the board. A u.FL lead runs from it to the SMA jack on the deck.', ['LoRa', '433 MHz', 'Ra-02']],
+  [/^B - U5/, '03 · PCB B, flight computer', 'BMP280 pressure sensor', 'Measures air pressure, which gives the altitude during the descent.', ['Adafruit 2651', 'BMP280']],
+  [/^PCB A/, '03 · PCB A, power & interface', 'Power and interface board', 'Charging, the power switch, two 5 V regulators, the GPS receiver and the buzzer. It slides into the sled on the battery side.', ['52 × 77.5 mm']],
+  [/^A - U1/, '03 · PCB A, power & interface', 'TP4056 USB-C charger', 'Charges the 18650 cell over USB-C, with battery protection built in.', ['TP4056', 'USB-C']],
+  [/^A - SW1/, '03 · PCB A, power & interface', 'Pushbutton power switch', 'Turns the whole can on and off with a single press.', ['Pololu Mini LV']],
+  [/^A - U2/, '03 · PCB A, power & interface', '5 V regulator (main)', 'Turns the cell’s voltage into a steady 5 V for the main electronics.', ['Pololu U3V40F5', '5 V']],
+  [/^A - U3/, '03 · PCB A, power & interface', '5 V regulator (Pi)', 'A second 5 V regulator just for the Raspberry Pi, so its current peaks don’t disturb the rest.', ['Pololu U3V40F5', '5 V']],
+  [/^A - U6/, '03 · PCB A, power & interface', 'NEO-6M GPS receiver', 'Works out where the can is, using the patch antenna on top of the deck.', ['NEO-6M', 'GY-GPS6MV2']],
+  [/^A - U7/, '03 · PCB A, power & interface', 'Active buzzer', 'A 12 mm buzzer that helps the recovery team find the can after it lands.', ['12 mm', 'recovery']],
+  [/^PRINT Antenna deck/, '04 · Antenna deck', 'Antenna deck', 'Caps the sled and holds both antennas. Two screws fix it to the sled, and the top cap clamps it down as well.', ['3D printed']],
+  [/^SMA/, '04 · Antenna deck', 'SMA bulkhead jack', 'Goes up through the 6.6 mm hole in the deck’s tower and is locked with a washer and nut. The radio antenna screws onto it.', ['SMA bulkhead', '8 mm hex']],
+  [/^GPS patch/, '04 · Antenna deck', 'GPS patch antenna', 'An active patch antenna lying flat on the deck, facing the sky through the top of the can.', ['25 × 25 × 7.8 mm', 'active']],
+  [/^SCREW antenna deck/, '04 · Antenna deck', 'Deck screws', 'Two self-tapping screws that hold the deck onto the sled.', ['M2×8', 'self-tapping']],
+  [/^433 MHz/, '06 · Close', '433 MHz antenna', 'Screws onto the SMA jack. Its tip ends 39 mm above the can, inside the 45 mm limit.', ['TX433-JZ-4', 'SMA-J, 40 mm']],
+];
+const partInfo = name => { const r = PART_INFO.find(i => i[0].test(name)); return r ? { ch: r[1], title: r[2], text: r[3], tags: r[4] } : { ch: '', title: name, text: '', tags: [] }; };
+
 // Camera keys: [time, target, distance, azimuth°, elevation°].
 const CAM = [
   [0, [45, 0, 60], 480, -55, 24], [2.6, [0, 0, 12], 200, -40, 52], [16, [0, 0, 12], 200, 25, 48],
@@ -577,13 +697,14 @@ function measure() {
 const SWAP = 0.5, MOVE_END = 0.92;
 const moveF = f => clamp((f - SWAP) / (MOVE_END - SWAP));
 
-// Deconstruction: the moment you start scrolling, the finished can comes apart by playing the build
+// Deconstruction: the moment you start scrolling (once an exploded can has gone back together), the finished can comes apart by playing the build
 // backwards, step by step (each step gets the same share of the time), until only the first stage, the
 // sensor base, is left. It runs on its own clock, so once started it always finishes, even if you stop
 // scrolling; the first card then picks up from exactly that state. Back at the very top, it rebuilds the same way.
 const DEC_ON = 4, DEC_OFF = 1;     // px scrolled to start taking it apart / to put it back together
 const DEC_DUR = 4.5;               // seconds for the whole deconstruction (quicker if you're already past the first card)
 let decP = 0, decGoal = 0;         // progress 0 (finished can) → 1 (sensor base only), and where it's heading
+let expG = 0;                      // exploded view: 0 (the finished can) → 1 (every part pulled apart)
 function decT(u) {                 // u: 0 (finished can) → 1 (sensor base only); returns build time
   const K = stepEnd.slice(0, -1).reverse();
   K[0] = END;
@@ -645,6 +766,7 @@ document.querySelectorAll('a[href="#specs"]').forEach(a => a.addEventListener('c
   if (to <= scrollY) return;
   jump = { to, start: performance.now() };
   decP = decGoal = 1;              // arrive as if the build had been scrolled through, so nothing replays afterwards
+  expG = 0;
 }));
 
 /* ---------- soft snap: if you stop scrolling close to a step, ease the last bit onto it ---------- */
@@ -846,7 +968,7 @@ if (!renderer) {
   scene.add(grid);
 
   /* ---------- layout: keep the model clear of the text column ---------- */
-  let frameScale = 1, dirty = true, viewOx = 0, viewOy = 0;
+  let frameScale = 1, dirty = true, viewOx = 0, viewOy = 0, fitW = W, fitH = H;
   function layout() {
     W = innerWidth; H = innerHeight;
     renderer.setSize(W, H);
@@ -863,7 +985,7 @@ if (!renderer) {
     camera.aspect = W / H;
     camera.setViewOffset(W, H, -ox, oy, W, H);
     camera.updateProjectionMatrix();
-    viewOx = ox; viewOy = oy;
+    viewOx = ox; viewOy = oy; fitW = availW; fitH = availH;
     frameScale = Math.max(H / availH, design * H / availW, 1);
     scene.fog.near = 700 * frameScale;
     scene.fog.far = 1300 * frameScale;
@@ -880,114 +1002,11 @@ if (!renderer) {
     camera.lookAt(target[0], target[1], target[2]);
   }
 
-  /* ---------- landing intro: the finished can comes down under a parachute when the page opens ---------- */
-  const rig = new THREE.Group();          // every part hangs off this, so the whole can can be flown in
+  const rig = new THREE.Group();          // every part hangs off this
   scene.add(rig);
-  const CH = { gores: 8, R: 104, lines: 150, hang: 176, land: 3.2, total: 5.1 };   // mm, mm, mm, mm above the base, s, s
-  const chute = (() => {
-    const canopy = new THREE.Group(), mats = [], hem = [];
-    const edgeMat = new THREE.LineBasicMaterial({ color: 0x1b2530, transparent: true, opacity: .28 });
-    const span = 2 * Math.PI / CH.gores, cap = Math.PI * .46, vent = .1;
-    for (let g = 0; g < CH.gores; g++) {
-      const geo = new THREE.SphereGeometry(CH.R, 8, 12, g * span, span, vent, cap - vent);
-      geo.rotateX(Math.PI / 2);           // pole along +z
-      const pos = geo.attributes.position;
-      for (let v = 0; v < pos.count; v++) {
-        const x = pos.getX(v), y = pos.getY(v), z = pos.getZ(v), r = Math.hypot(x, y);
-        const u = (((Math.atan2(y, x) - g * span) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI) / span;   // 0…1 across the gore
-        const w = Math.sin(Math.PI * clamp(u)), d = clamp(Math.acos(clamp(z / CH.R, -1, 1)) / cap);        // 0 at the vent, 1 at the hem
-        const k = 1 + .075 * w * d;       // each gore billows out between its lines, and its hem lifts into a scallop
-        pos.setXYZ(v, x * k, y * k, z + 9 * w * d * d * d - CH.R * Math.cos(cap));
-      }
-      geo.computeVertexNormals();
-      const mat = new THREE.MeshStandardMaterial({ color: g % 2 ? 0xf4f5f6 : 0xe8771e, roughness: .78, metalness: 0, side: THREE.DoubleSide });
-      const mesh = new THREE.Mesh(geo, mat);
-      mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo, 14), edgeMat));
-      canopy.add(mesh);
-      mats.push(mat);
-      const a = g * span, rh = CH.R * Math.sin(cap);
-      hem.push(new THREE.Vector3(rh * Math.cos(a), rh * Math.sin(a), 0));
-    }
-    // Suspension lines to a confluence point above the antenna tip, then a short bridle down to the cap.
-    const bridle = [0, 1, 2, 3].map(i => new THREE.Vector3(27 * Math.cos(i * Math.PI / 2 + Math.PI / 4), 27 * Math.sin(i * Math.PI / 2 + Math.PI / 4), 114.5));
-    const lineGeo = new THREE.BufferGeometry();
-    lineGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array((CH.gores + 4) * 6), 3));
-    const lineMat = new THREE.LineBasicMaterial({ color: 0x1b2530, transparent: true, opacity: .5 });
-    const lines = new THREE.LineSegments(lineGeo, lineMat);
-    lines.frustumCulled = false;
-    const group = new THREE.Group();
-    group.add(canopy, lines);
-    group.visible = false;
-    scene.add(group);
-    return { group, canopy, mats, edgeMat, hem, bridle, lines, lineMat, solid: true };
-  })();
-
-  let intro = null;                       // { t, back, side } while the landing plays
-  const Z = new THREE.Vector3(0, 0, 1), vA = new THREE.Vector3(), vB = new THREE.Vector3(), vK = new THREE.Vector3(), qA = new THREE.Quaternion();
-  function startIntro(azDeg) {
-    const az = azDeg * Math.PI / 180;
-    const away = new THREE.Vector3(-Math.cos(az), -Math.sin(az), 0), right = new THREE.Vector3(-Math.sin(az), Math.cos(az), 0);
-    // It arrives from the upper right and a little behind, clear of the text column.
-    intro = { t: -1, back: right.clone().multiplyScalar(.8).addScaledVector(away, .6).normalize() };
-    intro.side = new THREE.Vector3().crossVectors(Z, intro.back);
-    chute.group.visible = true;
-  }
-  function endIntro() {
-    intro = null;
-    chute.group.visible = false;
-    rig.position.set(0, 0, 0);
-    rig.quaternion.identity();
-    scene.fog.near = 700 * frameScale; scene.fog.far = 1300 * frameScale;
-    dirty = true; shadowT = NaN;
-  }
-  const tiltQuat = (q, lean, sway) => {   // tilt by `lean` rad back along the approach and `sway` rad sideways
-    vA.copy(intro.back).multiplyScalar(Math.tan(lean)).addScaledVector(intro.side, Math.tan(sway)).add(Z).normalize();
-    return q.setFromUnitVectors(Z, vA);
-  };
-  // Poses the can and parachute at intro.t; returns how far the can still is from its landing spot.
-  function poseIntro() {
-    const t = intro.t, x = clamp(t / CH.land), s = Math.max(0, t - CH.land), rad = Math.PI / 180;
-    const left = Math.pow(1 - x, 1.3);                                      // steady descent with a slight flare
-    const off = vB.copy(intro.back).multiplyScalar(300 * left).addScaledVector(Z, 900 * left).clone();
-    const swing = 8 * rad * Math.sin(t * 3.6 + .6) * Math.pow(1 - x, .8);
-    // Canopy trails behind on the way down; after touchdown it spills its air, falls away backwards and fades.
-    const fall = easeInOut(clamp(s / 1.75));
-    const lean = (7 + 15 * (1 - x)) * rad + 72 * rad * fall;
-    // The can: hangs a little off vertical, rights itself just before touchdown, then rocks once.
-    const upright = clamp((1 - x) * 4);
-    const rock = 2.2 * rad * Math.exp(-s * 5.5) * Math.sin(s * 17);
-    tiltQuat(rig.quaternion, lean * .32 * upright - rock, swing * 1.2 * upright);
-    vK.set(0, 0, CH.hang);
-    rig.position.copy(vK).add(off).sub(vA.set(0, 0, CH.hang).applyQuaternion(rig.quaternion));
-    if (s > 0) rig.position.set(0, 0, 0);                                    // rock about the base once it's down
-    rig.updateMatrixWorld(true);
-    const K = vK.set(0, 0, CH.hang).applyMatrix4(rig.matrixWorld);            // where the lines meet
-
-    const c = chute.canopy;
-    tiltQuat(c.quaternion, lean, swing * .55);
-    const slack = 1 - .3 * fall;
-    c.position.copy(K).addScaledVector(vA.set(0, 0, 1).applyQuaternion(c.quaternion), CH.lines * slack);
-    const breathe = 1 + .018 * Math.sin(t * 5.2), flat = 1 - .5 * fall;
-    c.scale.set(breathe * (1 - .2 * fall), breathe * (1 - .2 * fall), flat * (2 - breathe));
-    c.updateMatrixWorld(true);
-
-    const a = 1 - easeInOut(clamp((s - .55) / 1.05));
-    const solid = a > .999;
-    if (solid !== chute.solid) { for (const m of chute.mats) { m.transparent = !solid; m.needsUpdate = true; } chute.solid = solid; }
-    for (const m of chute.mats) m.opacity = a;
-    chute.edgeMat.opacity = .28 * a;
-    chute.lineMat.opacity = .5 * a;
-    const p = chute.lines.geometry.attributes.position;
-    let n = 0;
-    const seg = (from, to) => { p.setXYZ(n++, from.x, from.y, from.z); p.setXYZ(n++, to.x, to.y, to.z); };
-    for (const h of chute.hem) seg(K, vA.copy(h).applyMatrix4(c.matrixWorld));
-    for (const b of chute.bridle) seg(K, vA.copy(b).applyMatrix4(rig.matrixWorld));
-    p.needsUpdate = true;
-    return off;
-  }
 
   /* ---------- load the model (vertex data shared with the visualizer) ---------- */
-  const parts = [];
+  const parts = [], pickables = [];
   function loadModel() {
     return new Promise((resolve, reject) => {
       if (window.CANSAT_MODEL) return resolve(window.CANSAT_MODEL);
@@ -1021,7 +1040,10 @@ if (!renderer) {
       const pivot = new THREE.Group();
       pivot.add(mesh);
       rig.add(pivot);
-      parts.push({ m: p, s: schedule(p.name), pivot, mesh, mat, edgeMat, isBody: p.name.startsWith('SHELL Body'), transparent: false });
+      const P = { m: p, s: schedule(p.name), ex: explodeOf(p.name), key: pickKey(p.name), pivot, mesh, mat, edgeMat, isBody: p.name.startsWith('SHELL Body'), transparent: false };
+      mesh.userData.P = P;
+      parts.push(P);
+      pickables.push(mesh);
     }
   }
 
@@ -1032,6 +1054,10 @@ if (!renderer) {
       if (!shown) continue;
       let off = lerp3(s.from, [0, 0, 0], easeOut(n));
       for (const k of s.subs) { const o = SUB[k](t); off = [off[0] + o[0], off[1] + o[1], off[2] + o[2]]; }
+      if (expG > 0) {                 // exploded view: each part sets off in turn, outside first
+        const f = easeInOut(clamp(expG * (1 + EXP_SPREAD) - P.ex.d)), o = P.ex.off;
+        off = [off[0] + o[0] * f, off[1] + o[1] * f, off[2] + o[2] * f];
+      }
       P.pivot.position.set(P.m.c[0] + off[0], P.m.c[1] + off[1], P.m.c[2] + off[2]);
       P.pivot.rotation.set(0, 0, 0);
       if (s.spin) P.pivot.rotation[s.spin.ax] = s.spin.turns * 2 * Math.PI * (1 - easeOut(n));
@@ -1074,6 +1100,171 @@ if (!renderer) {
   const endDrag = e => { if (drag && e.pointerId === drag.id) { drag = null; document.body.classList.remove('grabbing'); } };
   addEventListener('pointerup', endDrag);
   addEventListener('pointercancel', endDrag);
+
+  /* ---------- exploded view at the top: rotate, zoom, and click a part to read about it ---------- */
+  const EXP = { target: [0, 0, 200], h: 460, w: 340, r: 300, el: 15 };   // measured once the model has loaded
+  const vC = new THREE.Vector3(), box = new THREE.Box3(), pbox = new THREE.Box3();
+  function measureExplode() {
+    box.makeEmpty();
+    for (const P of parts) {
+      P.mesh.geometry.computeBoundingBox();
+      pbox.copy(P.mesh.geometry.boundingBox).translate(vC.set(P.m.c[0] + P.ex.off[0], P.m.c[1] + P.ex.off[1], P.m.c[2] + P.ex.off[2]));
+      box.union(pbox);
+    }
+    box.getCenter(vC);
+    EXP.target = [vC.x, vC.y, vC.z];
+    EXP.h = box.max.z - box.min.z;
+    let w = 0;   // as it turns, the widest it gets across the screen
+    for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) w = Math.max(w, Math.hypot(x - vC.x, y - vC.y));
+    EXP.w = 2 * w;
+    EXP.r = Math.hypot(w, EXP.h / 2);
+  }
+  // Camera distance (before frameScale) that fits the exploded can into the space beside the text.
+  function expDist() {
+    const t = Math.tan(camera.fov / 2 * Math.PI / 180), clearH = fitH - (W >= 900 ? 160 : 110);   // clear of the nav and the controls
+    return Math.max(EXP.h * .55 / (t * clearH / H), EXP.w * .5 / (t * fitW / H)) / frameScale;
+  }
+  // The sun follows the exploded can so every part keeps its shadow; leaveE slides it to the mission page's lighting.
+  function aimSun(se, leaveE) {
+    const tx = 45 + (EXP.target[0] - 45) * se, ty = EXP.target[1] * se, k = 1 + se;
+    sun.target.position.set(tx * (1 - leaveE), ty * (1 - leaveE), 40);
+    sun.position.set(tx + 115 * k, ty - 140 * k, 40 + 280 * k);
+    const b = 170 + (EXP.r * 1.25 - 170) * se - 20 * leaveE;
+    Object.assign(sun.shadow.camera, { left: -b, right: b, top: b, bottom: -b, far: 800 + 800 * se });
+    sun.shadow.camera.updateProjectionMatrix();
+  }
+
+  const Z_MIN = .2, Z_MAX = 1.6;
+  let exploring = false, explodeAt = Infinity, heroHold = false;   // heroHold: the viewer has taken over, so the slow turn stops
+  let zoom = 1, zoomGoal = 1, tilt = 0, tiltGoal = 0, focusF = 0, focusGoal = 0, shadowE = 0;
+  const focusCur = [0, 0, 0], focusAt = [0, 0, 0];
+  let selKey = null, hoverKey = null, hoverAt = null;
+  const heroSettled = () => expG === 0 && zoom === 1 && tilt === 0 && focusF === 0;
+  const exploreBar = document.getElementById('exploreBar'), card = document.getElementById('partCard');
+  if (matchMedia('(pointer: coarse)').matches) exploreBar.querySelector('.tip').textContent = 'Drag to turn · pinch to zoom · tap a part';
+  function setExploring(on) {
+    if (on === exploring) return;
+    exploring = on;
+    document.body.classList.toggle('exploring', on);
+    if (on) explodeAt = Math.max(explodeAt === Infinity ? 0 : explodeAt, performance.now() + 400);
+    else { select(null); setHover(null); hDrag = pinch = null; pts.clear(); heroHold = false; zoomGoal = 1; tiltGoal = 0; document.body.classList.remove('grabbing'); }
+  }
+  const ACCENT = new THREE.Color(0xe8771e);
+  function applyHighlight() {
+    for (const P of parts) {
+      const on = P.key === selKey ? .42 : P.key === hoverKey ? .2 : 0;
+      if (on) P.mat.emissive.copy(ACCENT); else P.mat.emissive.setRGB(0, 0, 0);
+      P.mat.emissiveIntensity = on || 1;
+    }
+    dirty = true;
+  }
+  function setHover(key) {
+    if (key === hoverKey) return;
+    hoverKey = key;
+    document.body.classList.toggle('over-part', !!key);
+    applyHighlight();
+  }
+  function select(key) {
+    if (key === selKey) return;
+    selKey = key;
+    applyHighlight();
+    if (!key) { card.classList.remove('show'); focusGoal = 0; return; }
+    const group = parts.filter(P => P.key === key);
+    box.makeEmpty();
+    for (const P of group) box.expandByObject(P.mesh);
+    box.getCenter(vC);
+    focusAt[0] = vC.x; focusAt[1] = vC.y; focusAt[2] = vC.z;
+    if (focusF < .01) focusCur.splice(0, 3, ...focusAt);
+    focusGoal = 1; heroHold = true;
+    zoomGoal = Math.min(zoomGoal, .7);
+    const info = partInfo(group[0].m.name), n = new Set(group.map(P => P.m.name)).size;
+    card.querySelector('.ch').textContent = info.ch;
+    card.querySelector('.n').textContent = /#\d+$/.test(group[0].m.name) && n > 1 ? '× ' + n : '';
+    card.querySelector('h3').textContent = info.title;
+    card.querySelector('p').textContent = info.text;
+    const tags = card.querySelector('.tags');
+    tags.replaceChildren(...info.tags.map(t => Object.assign(document.createElement('span'), { textContent: t })));
+    card.classList.add('show');
+  }
+  const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+  function pick(x, y) {
+    ndc.set(x / W * 2 - 1, 1 - y / H * 2);
+    ray.setFromCamera(ndc, camera);
+    for (const h of ray.intersectObjects(pickables, false)) {
+      const P = h.object.userData.P;
+      if (P.pivot.visible && P.mat.opacity > .5) return P;
+    }
+    return null;
+  }
+  const zoomBy = f => { zoomGoal = clamp(zoomGoal * f, Z_MIN, Z_MAX); dirty = true; };
+  const resetView = () => { select(null); zoomGoal = 1; tiltGoal = 0; heroHold = false; };
+  exploreBar.addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    if (b.dataset.zoom) zoomBy(+b.dataset.zoom > 0 ? 1 / 1.35 : 1.35);
+    else if ('reset' in b.dataset) resetView();
+  });
+  card.querySelector('.close').addEventListener('click', () => select(null));
+  addEventListener('keydown', e => { if (e.key === 'Escape' && selKey) select(null); });
+
+  const UI = '.col, a, button, .nav, #partCard, #exploreBar, #explore, footer, .card, .panel';
+  const pts = new Map();               // pointers down on the model, for pinching
+  let hDrag = null, pinch = null;
+  const spread = () => { const [a, b] = [...pts.values()]; return Math.hypot(a[0] - b[0], a[1] - b[1]) || 1; };
+  addEventListener('pointerdown', e => {
+    if (!exploring || e.target.closest(UI) || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    pts.set(e.pointerId, [e.clientX, e.clientY]);
+    if (pts.size >= 2) {               // second finger: pinch to zoom
+      if (pts.size === 2) pinch = { d: spread(), z: zoomGoal };
+      hDrag = null; document.body.classList.remove('grabbing');
+      return;
+    }
+    if (e.pointerType === 'mouse') e.preventDefault();   // no text selection while dragging
+    hDrag = { id: e.pointerId, x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, t0: performance.now(), moved: false, mouse: e.pointerType === 'mouse' };
+  });
+  addEventListener('pointermove', e => {
+    if (pts.has(e.pointerId)) pts.set(e.pointerId, [e.clientX, e.clientY]);
+    if (pinch && pts.size >= 2) { zoomGoal = zoom = clamp(pinch.z * pinch.d / spread(), Z_MIN, Z_MAX); dirty = true; return; }
+    if (hDrag && e.pointerId === hDrag.id) {
+      if (!hDrag.moved && Math.hypot(e.clientX - hDrag.x0, e.clientY - hDrag.y0) > 5) {
+        hDrag.moved = true; heroHold = true;
+        document.body.classList.add('grabbing');
+      }
+      if (hDrag.moved) {
+        heroClock -= (e.clientX - hDrag.x) * .4 / 7;   // the hero turn's own clock, so letting go never jumps
+        if (hDrag.mouse) tilt = tiltGoal = clamp(tilt + (e.clientY - hDrag.y) * .3, -12, 60);   // touch: vertical drags scroll the page
+        dirty = true;
+      }
+      hDrag.x = e.clientX; hDrag.y = e.clientY;
+      return;
+    }
+    if (exploring && e.pointerType === 'mouse' && !drag) hoverAt = e.target.closest(UI) ? 'none' : [e.clientX, e.clientY];
+  });
+  const endHeroDrag = e => {
+    pts.delete(e.pointerId);
+    if (pts.size < 2) pinch = null;
+    if (hDrag && e.pointerId === hDrag.id) {
+      if (e.type === 'pointerup' && !hDrag.moved && performance.now() - hDrag.t0 < 700) {   // a click, not a drag
+        const P = pick(e.clientX, e.clientY);
+        select(P ? P.key : null);
+      }
+      hDrag = null;
+      document.body.classList.remove('grabbing');
+    }
+  };
+  addEventListener('pointerup', endHeroDrag);
+  addEventListener('pointercancel', endHeroDrag);
+  addEventListener('blur', () => setHover(null));
+  // Zoom: Ctrl + wheel (also what a trackpad pinch sends), Safari's pinch gesture, two fingers, or the buttons.
+  // The plain wheel still scrolls the page, so scrolling on to the build always works.
+  addEventListener('wheel', e => {
+    if (!exploring || !e.ctrlKey || e.target.closest(UI)) return;
+    e.preventDefault();
+    zoomBy(Math.exp(clamp(e.deltaY, -60, 60) * .01));
+  }, { passive: false });
+  let gestureZ = 1;
+  addEventListener('gesturestart', e => { if (!exploring) return; e.preventDefault(); gestureZ = zoomGoal; });
+  addEventListener('gesturechange', e => { if (!exploring) return; e.preventDefault(); zoomGoal = clamp(gestureZ / e.scale, Z_MIN, Z_MAX); dirty = true; });
   const HERO_AZ = 330;
   // Idle turn: resting on a build step (not scrolling, not snapping), the can keeps turning slowly.
   // It eases in and out, and unwinds once scrolling resumes so each step's scripted view still lines up.
@@ -1090,19 +1281,17 @@ if (!renderer) {
   let ready = false, mode = '', shownT = END, shownC = stepEnd[0], shownU = 0, shownSpin = 0, heroClock = 0, lastNow = performance.now();
   let drawn = { t: NaN, c: NaN, u: NaN, spin: NaN, clock: NaN, opacity: NaN, idle: NaN };
   let decAz = null;                // azimuth the hero turn hands over to, fixed when the deconstruction starts
-  // Hand-over to the mission page: the can goes back together (if it was apart, or still under its parachute),
+  // Hand-over to the mission page: the can goes back together (if it was apart or exploded),
   // and moves to the middle of the screen, framed exactly the way the mission page's opening starts.
   let leave = null;
-  const Q0 = new THREE.Quaternion();
   sceneReady = () => ready;
   leaveScene = () => {
-    const whole = mode === 'hero' && shownU <= .001 && !intro;
+    const whole = mode === 'hero' && shownU <= .001 && expG < .02;
     // A long sweeping orbit round the can, carrying on the way it was already turning.
     leave = { start: performance.now(), dur: whole ? 2100 : 2600, dir: lastDir || 1, sweep: whole ? 250 : 290 };
   };
   resetLeave = () => {
     leave = null;
-    if (intro) endIntro();
     rig.position.set(0, 0, 0); rig.quaternion.identity();
     sun.target.position.x = 45;
     Object.assign(sun.shadow.camera, { left: -170, right: 170, top: 170, bottom: -170 });
@@ -1112,14 +1301,15 @@ if (!renderer) {
   };
   addEventListener('pageshow', e => { if (e.persisted && leave) resetLeave(); });
 
-  // The hero camera (following the parachute landing while it plays).
+  // The hero camera: the finished can, pulling back to take in the exploded view, then wherever the viewer turns,
+  // tilts, zooms or focuses it.
   function heroView() {
-    const tz = W >= 900 ? 60 : 0, dist = W >= 900 ? 350 : 520, el = W >= 900 ? 16 : 12, az = HERO_AZ + heroClock * 7;   // on phones, aim low so the can sits above the hero text
-    if (!intro) return { target: [0, 0, tz], dist, az, el, out: 1 };
-    // start wide and high to follow the descent, then ease into the usual hero framing
-    const off = poseIntro(), wide = 1 - easeInOut(ramp(intro.t, CH.land - 1.1, CH.total - CH.land + 1.1));
-    const out = 1 + (W >= 900 ? 1 : 1.8) * wide, lift = (W >= 900 ? 150 : 0) * wide;   // phones have only a thin strip above the text: pull back further
-    return { target: [off.x * .6, off.y * .6, tz + off.z * .6 + lift], dist: dist * out, az, el, out };
+    const wide = W >= 900, tz = wide ? 60 : 0, dist0 = wide ? 350 : 520, el0 = wide ? 16 : 12;   // on phones, aim low so the can sits above the hero text
+    const e = easeInOut(clamp(expG * 1.15));   // the camera leads the parts a little
+    let target = lerp3([0, 0, tz], EXP.target, e);
+    if (focusF > 0) target = lerp3(target, focusCur, focusF);
+    const dist = (dist0 + (expDist() - dist0) * e) * zoom;
+    return { target, dist, az: HERO_AZ + heroClock * 7, el: el0 + (EXP.el - el0) * e + tilt, out: Math.max(1, dist / dist0) };
   }
   // Ease a smoothed value toward its target, never slower than `rate` per second so the tail finishes.
   const follow = (cur, to, k, rate, dt) => {
@@ -1135,7 +1325,7 @@ if (!renderer) {
     if (handedOver || (leave && leave.sent)) { requestAnimationFrame(frame); return; }
     softSnap(now);
     stepJump(now);
-    stepDec(scrollY, dt, ready);
+    stepDec(scrollY, dt, ready && heroSettled());   // an exploded can goes back together before it is taken apart
     const y = scrollY, st = sceneAt(y);
     updateUI(y, st);
 
@@ -1150,11 +1340,24 @@ if (!renderer) {
     shownU = follow(shownU, st.u, kd, .15, dt);
     shownSpin += (st.spin - shownSpin) * k;
     if (Math.abs(st.spin - shownSpin) < 1e-3) shownSpin = st.spin;
-    if (mode === 'hero' && shownU < 1 && !reduceMotion) heroClock += dt;
-    if (intro) {
-      intro.t = intro.t < 0 ? 0 : intro.t + dt;      // the first frame after loading is a long one: start the clock after it
-      if (mode === 'build' || intro.t >= CH.total) endIntro();   // scrolled well past, or finished
+    if (mode === 'hero' && shownU < 1 && !reduceMotion && !heroHold) heroClock += dt;
+
+    // Exploded view: at the top of the page with the can whole, it comes apart and can be explored. Scrolling on
+    // (or leaving for the mission) puts it back together, and puts the view back, before anything else happens.
+    setExploring(ready && mode === 'hero' && decGoal === 0 && decP === 0 && !leave);
+    const expTo = exploring && now >= explodeAt ? 1 : 0;
+    if (expG !== expTo) {
+      const stepE = reduceMotion ? 1 : dt / (expTo ? 2.6 : .9);
+      expG = expTo > expG ? Math.min(expTo, expG + stepE) : Math.max(expTo, expG - stepE);
       dirty = true;
+    }
+    {
+      const kv = reduceMotion ? 1 : 1 - Math.exp(-dt * 7);
+      const ease = (v, to, eps) => { const n = v + (to - v) * kv; return Math.abs(to - n) < eps ? to : n; };
+      const z0 = zoom, t0 = tilt, f0 = focusF;
+      zoom = ease(zoom, zoomGoal, 1e-3); tilt = ease(tilt, tiltGoal, .01); focusF = ease(focusF, focusGoal, 1e-3);
+      for (let i = 0; i < 3; i++) focusCur[i] = ease(focusCur[i], focusAt[i], .01);
+      if (zoom !== z0 || tilt !== t0 || focusF !== f0 || (focusF && focusCur.some((v, i) => v !== focusAt[i]))) dirty = true;
     }
 
     // Orbit is available from the last card on; leaving that zone eases the view back to the scripted camera.
@@ -1217,8 +1420,9 @@ if (!renderer) {
       const eL = leave ? easeInOut(clamp((performance.now() - leave.start) / leave.dur)) : 0;
       const poseT = leave ? shownT + (END - shownT) * eL : shownT;
       poseParts(poseT);               // leaving: put the can back together on the way
-      // Parts moved, the can is flying in under its parachute, or the sun is shifting for the hand-over: new shadows.
-      if (poseT !== shadowT || intro || leave) { renderer.shadowMap.needsUpdate = true; shadowT = poseT; }
+      // Parts moved (built, taken apart or exploded), or the sun is shifting for the hand-over: new shadows.
+      if (poseT !== shadowT || expG !== shadowE || leave) { renderer.shadowMap.needsUpdate = true; shadowT = poseT; shadowE = expG; }
+      aimSun(easeInOut(clamp(expG * 1.15)), eL);
       const c = camAt(shownC);
       let target = c.target, dist = c.dist, az = c.az + shownSpin + userAz + idleAz, el = c.el + userEl, out = 1;
       if (shownU < 1) {               // hero camera, handing over to the build camera as the can comes apart
@@ -1238,13 +1442,6 @@ if (!renderer) {
       let scale = frameScale;
       if (leave) {                    // slide the can to the middle of the screen, framed the way the mission page opens
         const e = eL;
-        if (intro) {                  // still under the parachute: set it down and let the canopy go
-          const f = 1 - e;
-          for (const m of chute.mats) { if (!m.transparent) { m.transparent = true; m.needsUpdate = true; chute.solid = false; } m.opacity *= f; }
-          chute.edgeMat.opacity *= f; chute.lineMat.opacity *= f;
-          rig.position.multiplyScalar(f); rig.quaternion.slerp(Q0, e);
-          rig.updateMatrixWorld(true);
-        }
         target = lerp3(target, [0, 0, 60], e); dist += (350 - dist) * e; el += (16 - el) * e;
         // The sweep: swing a long way round, climbing high and pulling back mid-orbit, then drop into the mission's opening frame.
         const arc = Math.sin(Math.PI * e);
@@ -1254,11 +1451,7 @@ if (!renderer) {
         scale = frameScale + (Math.max(1, (W >= 900 || W >= H ? 1.6 : .95) * H / W) - frameScale) * e;   // same as the mission page's opening frame
         camera.setViewOffset(W, H, -viewOx * (1 - e), viewOy * (1 - e), W, H);
         camera.updateProjectionMatrix();
-        // The mission page lights the can from straight over its middle: match its shadow by the end.
-        sun.target.position.x = 45 * (1 - e);
-        const b = 170 - 20 * e;
-        Object.assign(sun.shadow.camera, { left: -b, right: b, top: b, bottom: -b });
-        sun.shadow.camera.updateProjectionMatrix();
+        // (aimSun has moved the sun to where the mission page lights the can from, straight over its middle.)
         if (e >= 1 && mission) {
           if (mission.failed) goToMission(mission.url);
           else if (mission.ready && !leave.sent) {   // this is the frame the mission page starts from
@@ -1269,6 +1462,7 @@ if (!renderer) {
       }
       placeCamera(target, dist, az, el, scale);
       renderer.render(scene, camera);
+      if (hoverAt && exploring && !hDrag) { const P = hoverAt === 'none' ? null : pick(hoverAt[0], hoverAt[1]); setHover(P ? P.key : null); hoverAt = null; }
       drawn = { t: shownT, c: shownC, u: shownU, spin: shownSpin, clock: heroClock, opacity: st.opacity, idle: idleAz };
       dirty = false;
     }
@@ -1281,10 +1475,10 @@ if (!renderer) {
   const compileShaders = () => renderer.extensions.has('KHR_parallel_shader_compile')
     ? renderer.compileAsync(scene, camera) : Promise.resolve(renderer.compile(scene, camera));
   // Compile every shader the page will use before the first frame, without holding up the page where the browser
-  // allows it, so nothing stalls later: that includes the see-through versions the parts and the parachute switch
+  // allows it, so nothing stalls later: that includes the see-through versions the parts switch
   // to as they fade, which would otherwise be compiled mid-animation the first time each fade starts.
   async function warmShaders() {
-    const fades = [...parts.map(P => P.mat), ...chute.mats];
+    const fades = parts.map(P => P.mat);
     await compileShaders();
     for (const m of fades) m.transparent = !m.transparent;
     try { await compileShaders(); }
@@ -1293,9 +1487,10 @@ if (!renderer) {
 
   loadModel().then(model => {
     buildMeshes(model);
+    measureExplode();
     return warmShaders().catch(() => {});
   }).then(() => {
-    if (!reduceMotion && sceneAt(scrollY).mode === 'hero') startIntro(HERO_AZ + heroClock * 7);
+    explodeAt = performance.now() + 700;   // a moment to see the finished can, then it comes apart
     ready = true; dirty = true;
     loading.classList.add('done');
   }).catch(() => { loading.textContent = 'Could not load the 3D model.'; });
