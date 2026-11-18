@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>RunnySat construction animation</title>
+<title>RunnySat 3D visualizer</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -35,6 +35,41 @@
   #hint { font-size:12px; color:var(--muted); }
   body.rec #bar, body.rec #hint { display:none; }
   #load { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; font-size:15px; color:var(--muted); }
+  /* ---------- exploded view (the default): the build player's caption and bar step aside ---------- */
+  body.explode #cap, body.explode #bar, body.explode #brand { display:none; }
+  body:not(.explode) #xui, body:not(.explode) #partCard { display:none; }
+  body.explode #view { cursor:grab; }
+  body.explode.over-part #view { cursor:pointer; }
+  body.explode.grabbing #view { cursor:grabbing; }
+  #xui > * { opacity:0; transition:opacity .6s; pointer-events:none; }
+  body.ui #xui > * { opacity:1; pointer-events:auto; }
+  .xpanel { background:var(--panel); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); border:1px solid var(--line);
+            box-shadow:0 6px 24px rgba(20,30,40,0.08); }
+  #xtop { position:fixed; left:28px; top:24px; max-width:min(400px, calc(100vw - 56px)); border-radius:12px; padding:14px 18px 15px; }
+  #xtop a { font-size:12.5px; color:var(--muted); text-decoration:none; }
+  #xtop a:hover { color:var(--ink); }
+  #xtop h1 { font-size:20px; letter-spacing:-.015em; margin:6px 0 4px; }
+  #xtop p { margin:0; font-size:13.5px; line-height:1.45; color:var(--muted); }
+  #xbar { position:fixed; left:50%; transform:translateX(-50%); bottom:18px; display:flex; gap:8px; align-items:center; border-radius:14px; padding:8px; white-space:nowrap; }
+  #xbar .primary { background:var(--ink); color:#fff; border-color:var(--ink); }
+  #partCard { position:fixed; z-index:6; top:24px; right:28px; width:min(320px, calc(100vw - 32px)); background:rgba(255,255,255,.95);
+              backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); border:1px solid rgba(232,119,30,.55); border-radius:14px;
+              padding:16px 18px 18px; box-shadow:0 10px 34px rgba(20,30,40,.14); opacity:0; transform:translateY(-8px); pointer-events:none;
+              transition:opacity .25s, transform .3s cubic-bezier(.2,.8,.2,1); }
+  #partCard.show { opacity:1; transform:none; pointer-events:auto; }
+  #partCard .meta { display:flex; justify-content:space-between; align-items:baseline; gap:12px; margin:0 26px 6px 0; }
+  #partCard .ch { font-size:11.5px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:#b85a10; }
+  #partCard .n { font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--muted); }
+  #partCard h3 { font-size:18px; line-height:1.25; letter-spacing:-.01em; margin:0 0 6px; font-weight:650; }
+  #partCard p { margin:0; font-size:14.5px; line-height:1.5; color:#2b3946; }
+  #partCard .tags { display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; }
+  #partCard .tags span { font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--muted); background:#fff; border:1px solid var(--line); border-radius:6px; padding:2px 7px; }
+  #partCard .close { all:unset; cursor:pointer; position:absolute; top:10px; right:10px; width:26px; height:26px; border-radius:50%; text-align:center;
+                     line-height:25px; font-size:17px; color:var(--muted); }
+  #partCard .close:hover { background:#eef1f4; color:var(--ink); }
+  #partCard .close:focus-visible { outline:2px solid var(--accent); }
+  @media (max-width:640px){ #xtop{left:12px;top:12px;right:12px;padding:12px 14px} #xtop p{font-size:12.5px} #xbar{bottom:12px}
+    #partCard{top:auto;bottom:70px;left:12px;right:12px;width:auto} }
   @media (max-width:640px){ #cap{left:12px;top:12px;padding:12px 14px} #cap .txt{font-size:15px} #brand{display:none} .chip{font-size:11.5px;padding:4px 7px} }
 </style>
 <script type="importmap">{ "imports": { "three": "./assets/three.module.min.js" } }</script>
@@ -47,6 +82,24 @@
 <div id="view"></div>
 <div id="cap"><div class="step" id="capStep"></div><div class="txt" id="capTxt"></div></div>
 <div id="brand"><b>RunnySat</b>Construction sequence · 36 parts · detailed electronics</div>
+<div id="xui">
+  <div id="xtop" class="xpanel">
+    <a href="index.html">← RunnySat</a>
+    <h1>Exploded view</h1>
+    <p id="xhint">Drag to rotate · scroll to zoom · right-drag to pan · click a part to see what it is</p>
+  </div>
+  <div id="xbar" class="xpanel">
+    <button id="xreset" title="Back to the whole exploded view">Reset view</button>
+    <button id="xbuild" class="primary" title="Play the construction sequence">▶ Watch the build</button>
+  </div>
+</div>
+<aside id="partCard" aria-live="polite">
+  <button type="button" class="close" aria-label="Close">×</button>
+  <div class="meta"><span class="ch"></span><span class="n"></span></div>
+  <h3></h3>
+  <p></p>
+  <div class="tags"></div>
+</aside>
 <div id="bar">
   <div id="row1">
     <button id="play" title="Play / pause (space)">❚❚</button>
@@ -57,6 +110,7 @@
     <span id="chips"></span>
     <span class="sp"></span>
     <span id="hint">Drag to orbit · scroll to zoom</span>
+    <button id="toExplode" title="Pull the finished can apart and click its parts">Exploded view</button>
     <button id="follow" class="on" title="Let the animation steer the camera">Auto camera</button>
     <button id="speed" title="Playback speed">1×</button>
   </div>
@@ -146,6 +200,81 @@ function schedule(name) {
   return s({ t: 0, d: .1 });
 }
 
+/* ================= exploded view (what the visualizer opens on) ================= */
+// Where each part sits when the finished can is pulled apart, as an offset in mm from where it is fitted, and when it
+// sets off (0…EXP_SPREAD of the way through the explosion: the outside comes off first, the sensor base last).
+// The base and its sensors stay at the bottom, the sled above them, the electronics fanned out along y above that
+// (each board with its parts lifted off the side they are fitted to), then the deck, the cap and the antenna.
+// The shell body steps aside so nothing is hidden inside it.
+const EXP_SPREAD = .55, ZE = 190;
+function explodeOf(name) {
+  const is = p => name.startsWith(p), e = (x, y, z, d) => ({ off: [x, y, z], d });
+  if (is('433 MHz')) return e(0, 0, 300, 0);
+  if (is('SHELL Top')) return e(0, 0, 262, .05);
+  if (is('SHELL Body')) return e(-125, -65, 0, .1);
+  if (is('PRINT Antenna deck')) return e(0, 0, 205, .17);
+  if (is('SMA')) return e(0, 0, 232, .19);
+  if (is('GPS patch')) return e(0, 0, 222, .19);
+  if (is('SCREW antenna deck')) return e(0, 0, 232, .21);
+  if (is('PRINT Sled')) return e(0, 0, 88, .26);
+  if (is('PCB B')) return e(0, -38, ZE, .28);
+  if (is('PCB A')) return e(0, 34, ZE, .28);
+  if (is('B - ')) return e(0, -14, ZE, .31);
+  if (is('A - ')) return e(0, 12, ZE, .31);
+  if (is('Raspberry')) return e(0, -70, ZE, .3);
+  if (is('SCREW Pi')) return e(0, -92, ZE, .34);
+  if (is('18650 holder')) return e(0, 62, ZE, .3);
+  if (is('CELL')) return e(0, 95, ZE, .33);
+  if (is('CABLE TIE')) return e(0, 128, ZE, .36);
+  if (is('PETG')) return e(0, 0, 20, .42);
+  if (is('Pi Camera') || is('MLX90640') || is('AS7263')) return e(0, 0, 34, .42);
+  if (is('PRINT MLX clamp')) return e(0, 0, 46, .46);
+  if (is('SCREW camera') || is('SCREW AS7263')) return e(0, 0, 52, .5);
+  if (is('SCREW MLX')) return e(0, 0, 60, .5);
+  return e(0, 0, 0, 0);
+}
+// Parts that are picked together: the pieces of one component, and every screw or tie of one set.
+const pickKey = name => name.startsWith('B - U8') ? 'B - U8' : name.replace(/#\d+$/, '');
+// What the card says when a part is clicked: [match, chapter, title, text, tags].
+const PART_INFO = [
+  [/^SHELL Body/, '05 · Shell', 'Grated shell body', 'The outer wall of the can. It comes down over the sensor base and twists to lock its bayonet. The gratings keep it light and let air reach the sensors.', ['3D printed', 'bayonet lock', 'Ø66 mm']],
+  [/^SHELL Top/, '06 · Close', 'Threaded top cap', 'Screws onto the body to close the can, and clamps the antenna deck down at the same time.', ['3D printed', 'threaded']],
+  [/^PRINT Sensor base/, '01 · Sensor base', 'Printed sensor base', 'The bottom of the can. It replaces the old shell bottom and carries all three downward-looking sensors, so they see the ground during the descent.', ['3D printed', 'Ø66 mm']],
+  [/^PETG/, '01 · Sensor base', 'PETG window', 'A thin clear disc over the camera opening. It protects the lens while letting it look straight down through the base.', ['16 × 0.5 mm', 'PETG']],
+  [/^Pi Camera/, '01 · Sensor base', 'Pi Camera Module 2 NoIR', 'A camera with no infrared-blocking filter, fitted with a blue gel. It sees near-infrared and blue light at once, the classic setup for NDVI-style vegetation imaging.', ['SC0024', 'NoIR', 'blue gel']],
+  [/^SCREW camera/, '01 · Sensor base', 'Camera screws', 'Four self-tapping screws that hold the Pi Camera down on the sensor base.', ['M2×6', 'self-tapping']],
+  [/^MLX90640/, '01 · Sensor base', 'MLX90640 thermal camera', 'A 32 × 24 pixel thermal imager. Plastic blocks thermal infrared, so it looks through an open hole in the base instead of a window.', ['Pimoroni PIM365', '19 × 22 mm', '55° FOV']],
+  [/^PRINT MLX clamp/, '01 · Sensor base', 'MLX clamp bar', 'A printed bar that presses the thermal camera flat against the base.', ['3D printed']],
+  [/^SCREW MLX/, '01 · Sensor base', 'Clamp screws', 'Two self-tapping screws that pull the clamp bar down over the thermal camera.', ['M2×8', 'self-tapping']],
+  [/^AS7263/, '01 · Sensor base', 'AS7263 NIR spectrometer', 'Measures six near-infrared bands, adding spectral readings of the ground to the two images.', ['SparkFun SEN-14351', '25.4 × 25.4 mm']],
+  [/^SCREW AS7263/, '01 · Sensor base', 'Spectrometer screws', 'Two M3 screws that hold the spectrometer board and finish the sensor base.', ['M3×8']],
+  [/^PRINT Sled/, '02 · Sled', 'The sled', 'The backbone of the electronics. The Raspberry Pi mounts on one side and the battery on the other, and both PCBs slide down into it.', ['3D printed']],
+  [/^Raspberry/, '02 · Sled', 'Raspberry Pi Zero 2 W', 'The payload computer that runs the cameras and the spectrometer, with its microSD card already fitted.', ['Pi Zero 2 W', 'microSD']],
+  [/^SCREW Pi/, '02 · Sled', 'Pi screws', 'Four self-tapping screws, heads on the Pi, that hold it onto the posts inside the sled.', ['M2.5×4', 'self-tapping']],
+  [/^18650 holder/, '02 · Sled', '18650 battery holder', 'Sits between the sled’s guide rails, on the opposite face from the Pi.', ['LX3214', '77.5 × 21 × 21.5 mm']],
+  [/^CELL/, '02 · Sled', 'Samsung 30Q cell', 'One 18650 lithium-ion cell powers the whole can.', ['INR18650-30Q', 'Ø18.33 × 64.85 mm', 'Li-ion']],
+  [/^CABLE TIE/, '02 · Sled', 'Cable ties', 'Two ties wrap the holder and the cell so nothing shifts on landing.', ['2.5 mm']],
+  [/^PCB B/, '03 · PCB B, flight computer', 'Flight computer board', 'Carries the microcontroller, the data logger, the pressure sensor and the LoRa radio. It slides down into the sled right next to the Pi.', ['42 × 77.5 mm']],
+  [/^B - U4/, '03 · PCB B, flight computer', 'Seeed XIAO ESP32S3', 'The flight computer: a small microcontroller on headers that reads the flight sensors, logs the data and sends telemetry.', ['ESP32-S3', '21 × 17.8 mm']],
+  [/^B - U9/, '03 · PCB B, flight computer', 'microSD logger', 'A microSD card module that records the flight data on board, as a backup to the radio link.', ['Joy-IT COM-MSD']],
+  [/^B - U8/, '03 · PCB B, flight computer', 'Ra-02 LoRa radio', 'The 433 MHz telemetry radio, soldered straight onto the board. A u.FL lead runs from it to the SMA jack on the deck.', ['LoRa', '433 MHz', 'Ra-02']],
+  [/^B - U5/, '03 · PCB B, flight computer', 'BMP280 pressure sensor', 'Measures air pressure, which gives the altitude during the descent.', ['Adafruit 2651', 'BMP280']],
+  [/^PCB A/, '03 · PCB A, power & interface', 'Power and interface board', 'Charging, the power switch, two 5 V regulators, the GPS receiver and the buzzer. It slides into the sled on the battery side.', ['52 × 77.5 mm']],
+  [/^A - U1/, '03 · PCB A, power & interface', 'TP4056 USB-C charger', 'Charges the 18650 cell over USB-C, with battery protection built in.', ['TP4056', 'USB-C']],
+  [/^A - SW1/, '03 · PCB A, power & interface', 'Pushbutton power switch', 'Turns the whole can on and off with a single press.', ['Pololu Mini LV']],
+  [/^A - U2/, '03 · PCB A, power & interface', '5 V regulator (main)', 'Turns the cell’s voltage into a steady 5 V for the main electronics.', ['Pololu U3V40F5', '5 V']],
+  [/^A - U3/, '03 · PCB A, power & interface', '5 V regulator (Pi)', 'A second 5 V regulator just for the Raspberry Pi, so its current peaks don’t disturb the rest.', ['Pololu U3V40F5', '5 V']],
+  [/^A - U6/, '03 · PCB A, power & interface', 'NEO-6M GPS receiver', 'Works out where the can is, using the patch antenna on top of the deck.', ['NEO-6M', 'GY-GPS6MV2']],
+  [/^A - U7/, '03 · PCB A, power & interface', 'Active buzzer', 'A 12 mm buzzer that helps the recovery team find the can after it lands.', ['12 mm', 'recovery']],
+  [/^PRINT Antenna deck/, '04 · Antenna deck', 'Antenna deck', 'Caps the sled and holds both antennas. Two screws fix it to the sled, and the top cap clamps it down as well.', ['3D printed']],
+  [/^SMA/, '04 · Antenna deck', 'SMA bulkhead jack', 'Goes up through the 6.6 mm hole in the deck’s tower and is locked with a washer and nut. The radio antenna screws onto it.', ['SMA bulkhead', '8 mm hex']],
+  [/^GPS patch/, '04 · Antenna deck', 'GPS patch antenna', 'An active patch antenna lying flat on the deck, facing the sky through the top of the can.', ['25 × 25 × 7.8 mm', 'active']],
+  [/^SCREW antenna deck/, '04 · Antenna deck', 'Deck screws', 'Two self-tapping screws that hold the deck onto the sled.', ['M2×8', 'self-tapping']],
+  [/^433 MHz/, '06 · Close', '433 MHz antenna', 'Screws onto the SMA jack. Its tip ends 39 mm above the can, inside the 45 mm limit.', ['TX433-JZ-4', 'SMA-J, 40 mm']],
+];
+const partInfo = name => { const r = PART_INFO.find(i => i[0].test(name)); return r ? { ch: r[1], title: r[2], text: r[3], tags: r[4] } : { ch: '', title: name, text: '', tags: [] }; };
+
+
 // Caption per step: [time, step, text].
 const CAPTIONS = [
   [0,"RunnySat","Construction sequence: every part in the order it is fitted, electronics modelled from the real boards. Dimensions in mm."],
@@ -215,7 +344,7 @@ document.getElementById('view').appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xeef1f4);
 scene.fog = new THREE.Fog(0xeef1f4, 700, 1300);
-const camera = new THREE.PerspectiveCamera(32, innerWidth / innerHeight, 1, 3000);
+const camera = new THREE.PerspectiveCamera(32, innerWidth / innerHeight, 1, 6000);
 camera.up.set(0, 0, 1);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
@@ -246,7 +375,8 @@ grid.material.opacity = .55;
 scene.add(grid);
 
 /* ---------- the model (vertex data shared with the other pages) ---------- */
-const parts = [];
+const parts = [], pickables = [];
+let expG = 0;                        // exploded view: 0 (the finished can) → 1 (every part pulled apart)
 function loadModel() {
   return new Promise((resolve, reject) => {
     if (window.CANSAT_MODEL) return resolve(window.CANSAT_MODEL);
@@ -280,7 +410,10 @@ function buildMeshes(model) {
     const pivot = new THREE.Group();
     pivot.add(mesh);
     scene.add(pivot);
-    parts.push({ m: p, s: schedule(p.name), pivot, mesh, mat, edgeMat, isBody: p.name.startsWith('SHELL Body'), transparent: false });
+    const P = { m: p, s: schedule(p.name), ex: explodeOf(p.name), key: pickKey(p.name), pivot, mesh, mat, edgeMat, isBody: p.name.startsWith('SHELL Body'), transparent: false };
+    mesh.userData.P = P;
+    parts.push(P);
+    pickables.push(mesh);
   }
 }
 
@@ -293,6 +426,10 @@ function poseParts(t) {
     if (!shown) continue;
     let off = lerp3(s.from, [0, 0, 0], easeOut(n));
     for (const k of s.subs) { const o = SUB[k](t); off = [off[0] + o[0], off[1] + o[1], off[2] + o[2]]; }
+    if (expG > 0) {                 // exploded view: each part sets off in turn, outside first
+      const f = easeInOut(clamp(expG * (1 + EXP_SPREAD) - P.ex.d)), o = P.ex.off;
+      off = [off[0] + o[0] * f, off[1] + o[1] * f, off[2] + o[2] * f];
+    }
     P.pivot.position.set(P.m.c[0] + off[0], P.m.c[1] + off[1], P.m.c[2] + off[2]);
     P.pivot.rotation.set(0, 0, 0);
     if (s.spin) P.pivot.rotation[s.spin.ax] = s.spin.turns * 2 * Math.PI * (1 - easeOut(n));
@@ -350,24 +487,242 @@ document.getElementById('speed').onclick = e => { speed = speed === 1 ? 2 : spee
 addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); play.click(); } });
 controls.addEventListener('start', () => { follow = false; followBtn.classList.remove('on'); });
 
+/* ================= exploded view ================= */
+// The visualizer opens on the finished can, framed the way the landing page leaves it in the middle of the screen,
+// and pulls it apart. Opened from the landing page's resting can, it is loaded out of sight in a frame there and
+// waits on that first frame until the landing page says "go" (with the heading its can is turning through), then
+// carries on from exactly that frame, so the hand-over can't be seen.
+const embedded = window.parent !== window && new URLSearchParams(location.search).has('handoff');
+const tellParent = msg => { try { parent.postMessage({ runnysat: msg }, location.origin); } catch (e) {} };
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let mode = REC || location.hash === '#build' ? 'build' : 'explode';   // 'explode' | 'toBuild' (going back together first) | 'build'
+let waiting = embedded && mode === 'explode', goPending = false;
+let az0 = 330, xClock = 0, userTook = false, fog0 = null;
+const X_DELAY = .35, HERO_TURN = 7;        // s before it comes apart; deg/s of the landing page's slow turn
+if (embedded) {
+  // Links that leave this page take the whole window with them, not just this frame.
+  document.addEventListener('click', e => {
+    const a = e.target.closest && e.target.closest('a[href]');
+    if (!a || e.defaultPrevented || a.target) return;
+    e.preventDefault();
+    top.location.href = new URL(a.href, location.href).href;
+  });
+  addEventListener('message', e => {
+    if (e.origin !== location.origin || !e.data || e.data.runnysat !== 'go' || !waiting) return;
+    az0 = e.data.az; if (Array.isArray(e.data.fog)) fog0 = e.data.fog;
+    waiting = false; goPending = true; xClock = 0; dirty = true;
+  });
+}
+function handoffTick(drew) {
+  if (!embedded || !drew) return;
+  if (waiting && !handoffTick.ready) { handoffTick.ready = true; tellParent('ready'); }   // drawn once, so the shaders are warm
+  else if (goPending) { goPending = false; tellParent('shown'); }
+}
+const W_ = () => innerWidth, H_ = () => innerHeight;
+// The landing page's hand-over frame: the can in the middle at 350 mm, scaled up on narrow screens.
+const heroScale = () => Math.max(1, (W_() >= 900 || W_() >= H_() ? 1.6 : .95) * H_() / W_());
+
+const EXP = { target: [0, 0, 200], h: 460, w: 340, r: 300, el: 15 };
+const vC = new THREE.Vector3(), box = new THREE.Box3(), pbox = new THREE.Box3();
+function measureExplode() {
+  box.makeEmpty();
+  for (const P of parts) {
+    P.mesh.geometry.computeBoundingBox();
+    pbox.copy(P.mesh.geometry.boundingBox).translate(vC.set(P.m.c[0] + P.ex.off[0], P.m.c[1] + P.ex.off[1], P.m.c[2] + P.ex.off[2]));
+    box.union(pbox);
+  }
+  box.getCenter(vC);
+  EXP.target = [vC.x, vC.y, vC.z];
+  EXP.h = box.max.z - box.min.z;
+  let w = 0;   // as it turns, the widest it gets across the screen
+  for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) w = Math.max(w, Math.hypot(x - vC.x, y - vC.y));
+  EXP.w = 2 * w;
+  EXP.r = Math.hypot(w, EXP.h / 2);
+}
+// Camera distance that fits the whole exploded can on screen, clear of the panels top and bottom.
+function expDist() {
+  const t = Math.tan(camera.fov / 2 * Math.PI / 180), H = H_(), clearH = H - (W_() > 640 ? 190 : 230);
+  return Math.max(EXP.h * .55 / (t * clearH / H), EXP.w * .52 / (t * W_() / H));
+}
+// Light: the landing page's hand-over lighting (sun straight over the can) → following the exploded parts →
+// the build player's own lighting.
+function aimSun(se, build) {
+  const bx = build ? 45 : 0, bb = build ? 170 : 150;
+  const tx = bx + (EXP.target[0] - bx) * se, ty = EXP.target[1] * se, k = 1 + se;
+  sun.target.position.set(tx, ty, 40);
+  sun.position.set((build ? 160 : 160 + tx) + 115 * (k - 1), ty - 140 * k, 40 + 280 * k);
+  const b = bb + (EXP.r * 1.25 - bb) * se;
+  Object.assign(sun.shadow.camera, { left: -b, right: b, top: b, bottom: -b, far: 800 + 800 * se });
+  sun.shadow.camera.updateProjectionMatrix();
+}
+const place = (tg, d, azDeg, elDeg) => {
+  const az = azDeg * Math.PI / 180, el = elDeg * Math.PI / 180;
+  return [tg[0] + d * Math.cos(el) * Math.cos(az), tg[1] + d * Math.cos(el) * Math.sin(az), tg[2] + d * Math.sin(el)];
+};
+let focus = null;                    // { t0, t1, d0, d1, dir, t } while gliding onto a clicked part
+function xCamera() {
+  const e = easeInOut(clamp(expG * 1.15));   // the camera leads the parts a little
+  const d0 = 350 * heroScale();
+  if (!userTook) {                   // scripted: from the hand-over frame out to the whole exploded can, still turning slowly
+    const tg = lerp3([0, 0, 60], EXP.target, e), d = d0 + (expDist() - d0) * e;
+    setCam(place(tg, d, az0 + HERO_TURN * xClock, 16 + (EXP.el - 16) * e), tg);
+  } else if (focus) {
+    const f = easeInOut(clamp(focus.t));
+    controls.target.lerpVectors(focus.t0, focus.t1, f);
+    camera.position.copy(controls.target).addScaledVector(focus.dir, focus.d0 + (focus.d1 - focus.d0) * f);
+  }
+  // The haze: as the landing page had it at the hand-over, then kept behind the can wherever the camera goes.
+  const cd = camera.position.distanceTo(controls.target);
+  const f0 = fog0 || [700 * heroScale(), 1300 * heroScale()];
+  const near = cd * 1.3 + 300, ef = userTook ? 1 : e;
+  scene.fog.near = f0[0] + (near - f0[0]) * ef;
+  scene.fog.far = f0[1] + (near + 900 - f0[1]) * ef;
+  aimSun(e, false);
+}
+function xStep(dt) {
+  if (!waiting && !reduceMotion) xClock += dt;
+  if (!waiting && reduceMotion) xClock = X_DELAY + 1;
+  if (!waiting && xClock > .25) document.body.classList.add('ui');
+  const to = mode === 'explode' && !waiting && xClock >= X_DELAY ? 1 : 0;
+  if (expG !== to) {
+    const st = reduceMotion ? 1 : dt / (to ? 2.6 : .8);
+    expG = to > expG ? Math.min(to, expG + st) : Math.max(to, expG - st);
+    dirty = true;
+  }
+  if (!userTook && !waiting) dirty = true;    // the slow turn
+  if (focus) { focus.t += dt / .7; dirty = true; if (focus.t >= 1) focus = null; }
+  if (mode === 'toBuild' && expG === 0) enterBuild();
+}
+
+// Picking parts: hover highlights, a click selects, focuses the camera on it and opens its card.
+const card = document.getElementById('partCard');
+const ACCENT = new THREE.Color(0xe8771e);
+let selKey = null, hoverKey = null, hoverAt = null;
+function applyHighlight() {
+  for (const P of parts) {
+    const on = P.key === selKey ? .42 : P.key === hoverKey ? .2 : 0;
+    if (on) P.mat.emissive.copy(ACCENT); else P.mat.emissive.setRGB(0, 0, 0);
+    P.mat.emissiveIntensity = on || 1;
+  }
+  dirty = true;
+}
+function setHover(key) {
+  if (key === hoverKey) return;
+  hoverKey = key;
+  document.body.classList.toggle('over-part', !!key);
+  applyHighlight();
+}
+function select(key) {
+  if (key === selKey) return;
+  selKey = key;
+  applyHighlight();
+  if (!key) { card.classList.remove('show'); return; }
+  const group = parts.filter(P => P.key === key);
+  box.makeEmpty();
+  for (const P of group) box.expandByObject(P.mesh);
+  box.getCenter(vC);
+  // Glide onto it, closer if the view is far out, keeping the angle you're looking from.
+  userTook = true; blend = null;
+  const d0 = camera.position.distanceTo(controls.target), size = box.getSize(new THREE.Vector3()).length();
+  focus = { t0: controls.target.clone(), t1: vC.clone(), d0, d1: Math.min(d0, Math.max(160, size * 5, expDist() * .45)),
+            dir: camera.position.clone().sub(controls.target).normalize(), t: 0 };
+  const info = partInfo(group[0].m.name), n = new Set(group.map(P => P.m.name)).size;
+  card.querySelector('.ch').textContent = info.ch;
+  card.querySelector('.n').textContent = /#\d+$/.test(group[0].m.name) && n > 1 ? '× ' + n : '';
+  card.querySelector('h3').textContent = info.title;
+  card.querySelector('p').textContent = info.text;
+  card.querySelector('.tags').replaceChildren(...info.tags.map(t => Object.assign(document.createElement('span'), { textContent: t })));
+  card.classList.add('show');
+}
+card.querySelector('.close').addEventListener('click', () => select(null));
+addEventListener('keydown', e => { if (e.key === 'Escape' && selKey) select(null); });
+const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+function pick(x, y) {
+  ndc.set(x / W_() * 2 - 1, 1 - y / H_() * 2);
+  ray.setFromCamera(ndc, camera);
+  for (const h of ray.intersectObjects(pickables, false)) {
+    const P = h.object.userData.P;
+    if (P.pivot.visible && P.mat.opacity > .5) return P;
+  }
+  return null;
+}
+const canvas = renderer.domElement;
+let down = null;
+canvas.addEventListener('pointerdown', e => {
+  if (mode !== 'explode') return;
+  down = { x: e.clientX, y: e.clientY, t: performance.now(), id: e.pointerId };
+  document.body.classList.add('grabbing');
+});
+canvas.addEventListener('pointermove', e => {
+  if (mode === 'explode' && e.pointerType === 'mouse' && !down) hoverAt = [e.clientX, e.clientY];
+});
+addEventListener('pointerup', e => {
+  document.body.classList.remove('grabbing');
+  if (!down || e.pointerId !== down.id) return;
+  const click = Math.hypot(e.clientX - down.x, e.clientY - down.y) < 5 && performance.now() - down.t < 700;
+  down = null;
+  if (click && mode === 'explode') { const P = pick(e.clientX, e.clientY); select(P ? P.key : null); }
+});
+addEventListener('pointercancel', () => { down = null; document.body.classList.remove('grabbing'); });
+canvas.addEventListener('pointerleave', () => { hoverAt = null; setHover(null); });
+controls.addEventListener('start', () => { if (mode !== 'build') { userTook = true; focus = null; blend = null; } });
+if (matchMedia('(pointer: coarse)').matches) document.getElementById('xhint').textContent = 'Drag to rotate · pinch to zoom · two fingers to pan · tap a part to see what it is';
+
+// Between the two views.
+function enterBuild() {
+  mode = 'build';
+  select(null); setHover(null);
+  document.body.classList.remove('explode', 'ui');
+  aimSun(0, true);
+  scene.fog.near = 700; scene.fog.far = 1300;
+  time = 0; playing = true; follow = true; followBtn.classList.add('on');
+  startBlend();
+  dirty = true;
+}
+function enterExplode() {
+  mode = 'explode';
+  playing = false; time = END;
+  document.body.classList.add('explode', 'ui');
+  // Carry on from where the build camera is looking, turning slowly from that heading.
+  const off = camera.position.clone().sub(controls.target);
+  az0 = Math.atan2(off.y, off.x) * 180 / Math.PI; xClock = X_DELAY; userTook = false; fog0 = null;
+  startBlend();
+  dirty = true;
+}
+document.getElementById('xbuild').onclick = () => { if (mode === 'explode') { select(null); mode = expG > 0 ? 'toBuild' : 'build'; if (mode === 'build') enterBuild(); } };
+document.getElementById('toExplode').onclick = () => { if (mode === 'build') enterExplode(); };
+document.getElementById('xreset').onclick = () => { select(null); if (userTook) { userTook = false; focus = null; startBlend(); } };
+if (mode === 'explode') document.body.classList.add('explode');
+else aimSun(0, true);
+
 /* ================= drawing ================= */
 // A frame is only drawn when something on screen changes: the build moving, the camera moving (the auto camera,
 // dragging, zooming, or the controls still easing to a stop), or the window changing size. A paused build left
 // alone costs nothing.
-let posedT = NaN, dirty = true;
+let posedT = NaN, posedE = NaN, dirty = true;
 controls.addEventListener('change', () => { dirty = true; });
+// Switching between the build and the exploded view blends the camera over from where it was, instead of cutting.
+let blend = null;                    // { pos, tg, t } while blending
+const vP = new THREE.Vector3(), vT = new THREE.Vector3();
+function setCam(pos, tg) {
+  vP.set(...pos); vT.set(...tg);
+  if (blend) { const f = easeInOut(clamp(blend.t)); vP.lerpVectors(blend.pos, vP, f); vT.lerpVectors(blend.tg, vT, f); }
+  camera.position.copy(vP);
+  controls.target.copy(vT);
+  camera.lookAt(vT);
+}
+function startBlend() { blend = { pos: camera.position.clone(), tg: controls.target.clone(), t: 0 }; }
 function aim(t) {
   const c = camAt(t);
-  camera.position.set(...c.pos);
-  controls.target.set(...c.tg);
-  camera.lookAt(...c.tg);
+  setCam(c.pos, c.tg);
 }
 function draw(t, force) {
-  if (t !== posedT) { poseParts(t); posedT = t; renderer.shadowMap.needsUpdate = true; dirty = true; }
-  caption(t);
-  if (follow || REC) aim(t);
+  if (t !== posedT || expG !== posedE) { poseParts(t); posedT = t; posedE = expG; renderer.shadowMap.needsUpdate = true; dirty = true; }
+  if (mode === 'build') { caption(t); if (follow || REC) aim(t); }
+  else xCamera();
   controls.update();
-  if (force || dirty) { renderer.render(scene, camera); dirty = false; }
+  if (force || dirty) { renderer.render(scene, camera); dirty = false; return true; }
+  return false;
 }
 window.__render = t => (time = t, follow = true, draw(t, true), true);
 
@@ -376,6 +731,15 @@ let shown = { play: '', scrub: NaN, time: '', chip: -1 };
 function frame(now) {
   const dt = Math.min(.1, (now - lastNow) / 1000);
   lastNow = now;
+  if (blend) { blend.t += dt / 1.1; dirty = true; if (blend.t >= 1) blend = null; }
+  if (mode !== 'build') {
+    xStep(dt);
+    const drew = draw(END);
+    handoffTick(drew);
+    if (hoverAt && !down && mode === 'explode') { const P = pick(hoverAt[0], hoverAt[1]); setHover(P ? P.key : null); hoverAt = null; }
+    requestAnimationFrame(frame);
+    return;
+  }
   if (playing) { time += dt * speed; if (time >= END) { time = END; playing = false; } }
   const p = playing ? '❚❚' : '▶';
   if (p !== shown.play) play.textContent = shown.play = p;
@@ -397,13 +761,14 @@ addEventListener('resize', () => {
 
 loadModel().then(model => {
   buildMeshes(model);
+  measureExplode();
   return warmShaders().catch(() => {});
 }).then(() => {
   document.getElementById('load').remove();
   window.__ready = true;
   lastNow = performance.now();
   if (REC) draw(0, true); else requestAnimationFrame(frame);
-}).catch(() => { document.getElementById('load').textContent = 'Could not load the 3D model.'; });
+}).catch(() => { document.getElementById('load').textContent = 'Could not load the 3D model.'; tellParent('failed'); });
 </script>
 </body>
 </html>
