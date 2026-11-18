@@ -497,8 +497,8 @@ const tellParent = msg => { try { parent.postMessage({ runnysat: msg }, location
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 let mode = REC || location.hash === '#build' ? 'build' : 'explode';   // 'explode' | 'toBuild' (going back together first) | 'build'
 let waiting = embedded && mode === 'explode', goPending = false;
-let az0 = 330, xClock = 0, userTook = false, fog0 = null;
-const X_DELAY = .35, HERO_TURN = 7;        // s before it comes apart; deg/s of the landing page's slow turn
+let az0 = 330, xClock = 0, userTook = false, fog0 = null, turn = 7;
+const X_DELAY = .35;                       // s before it comes apart; `turn` is the landing page's slow turn (deg/s)
 if (embedded) {
   // Links that leave this page take the whole window with them, not just this frame.
   document.addEventListener('click', e => {
@@ -510,6 +510,7 @@ if (embedded) {
   addEventListener('message', e => {
     if (e.origin !== location.origin || !e.data || e.data.runnysat !== 'go' || !waiting) return;
     az0 = e.data.az; if (Array.isArray(e.data.fog)) fog0 = e.data.fog;
+    if (Number.isFinite(e.data.turn) && Math.abs(e.data.turn) < 60) turn = e.data.turn;   // keep the landing page's turn going
     waiting = false; goPending = true; xClock = 0; dirty = true;
   });
 }
@@ -565,7 +566,7 @@ function xCamera() {
   const d0 = 350 * heroScale();
   if (!userTook) {                   // scripted: from the hand-over frame out to the whole exploded can, still turning slowly
     const tg = lerp3([0, 0, 60], EXP.target, e), d = d0 + (expDist() - d0) * e;
-    setCam(place(tg, d, az0 + HERO_TURN * xClock, 16 + (EXP.el - 16) * e), tg);
+    setCam(place(tg, d, az0 + turn * xClock, 16 + (EXP.el - 16) * e), tg);
   } else if (focus) {
     const f = easeInOut(clamp(focus.t));
     controls.target.lerpVectors(focus.t0, focus.t1, f);

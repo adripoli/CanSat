@@ -50,7 +50,7 @@
   .pill .dot { display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--accent); margin-right:7px; vertical-align:1px; }
   /* leaving for the mission page: the text fades and the can moves to the middle, where the mission page picks it up */
   body.leaving main, body.leaving .nav, body.leaving #rail, body.leaving #progress, body.leaving #orbitHint, body.leaving #loading,
-  body.leaving #explore, body.leaving footer { opacity:0 !important; pointer-events:none; transition:opacity .4s; }
+  body.leaving #explore { opacity:0 !important; pointer-events:none; transition:opacity .4s; }
   body.leaving-all #stage { opacity:0; transition:opacity .35s; }
   /* the mission page, opened inside this one: loaded out of sight, swapped in on the frame where its can matches ours */
   #missionFrame { position:fixed; left:0; top:0; width:100vw; height:100vh; border:0; margin:0; z-index:100; opacity:0; pointer-events:none; background:transparent; }
@@ -146,9 +146,6 @@
   #explore .btn:hover { background:#f08a36; }
   #explore .btn.alt { background:transparent; border-color:#3a4a5a; color:#fff; }
   #explore .btn.alt:hover { border-color:#6b7b8b; background:transparent; }
-  footer { position:relative; z-index:1; background:var(--ink); color:#8795a2; border-top:1px solid #2a3846; padding:22px var(--gutter); font-size:13px;
-           display:flex; gap:16px; justify-content:space-between; flex-wrap:wrap; }
-  footer a { color:#c9d2da; }
 
   /* ---------- small screens: model on top, text below ---------- */
   @media (max-width: 899px) {
@@ -176,7 +173,6 @@
     dl.subs { grid-template-columns:1fr; gap:2px; }
     dl.subs dd { margin-bottom:8px; }
     #explore { padding:64px 16px; }
-    footer { padding:20px 16px; }
   }
   @media (min-width: 900px) { #hero .panel-sm { display:contents; } }
 </style>
@@ -426,10 +422,6 @@
     </div>
   </div>
 </section>
-<footer>
-  <span>RunnySat · construction model · dimensions in mm</span>
-  <a href="#top">Back to top ↑</a>
-</footer>
 
 <script type="module">
 import * as THREE from 'three';
@@ -714,10 +706,10 @@ function updateUI(y, st) {
    screen (put back together first, if it was apart). The mission page draws its opening's first frame (the can on
    the same floor, from the same angle), and on the frame it is ready it is swapped in, so the liftoff, parachute and
    descent simply carry on from here. The address then reads mission.html; going back returns to this page.
-   The 3D visualizer links do the same from the top of the page, once the can has landed and is just sitting there:
-   the can glides to the middle without the sweep, and the visualizer takes over on that frame and explodes it. */
+   The 3D visualizer links do the same wherever the can is whole: at the top once it has landed, or at the bottom once
+   it is fully built. The can glides to the middle without the sweep, and the visualizer takes over on that frame and explodes it. */
 let sceneReady = () => false;        // set by the 3D scene
-let canResting = () => false;        // set by the 3D scene: the finished can is sitting at the top, nothing else going on
+let canResting = () => false;        // set by the 3D scene: the finished can is whole and on screen (resting at the top, or built at the bottom)
 let leaveScene = null;               // set by the 3D scene: brings the can to the middle, then hands it over
 let resetLeave = () => {};           // set by the 3D scene: back to normal after returning
 let handedOver = false;              // the mission is showing: stop drawing here
@@ -774,7 +766,7 @@ addEventListener('popstate', e => {
   } else if (!mission && e.state && e.state.mission) location.reload();   // forward again: open the mission page itself
 });
 document.querySelectorAll('a[data-leave]').forEach(a => {
-  const viz = a.dataset.leave === 'viz';           // the visualizer: only from the resting can at the top
+  const viz = a.dataset.leave === 'viz';           // the visualizer: only from the whole can (resting at the top, or fully built at the bottom)
   const can = () => canHandOver() && (!viz || canResting());
   const preload = () => { if (can()) loadMission(a.href); };   // start loading as soon as it looks likely
   a.addEventListener('pointerenter', preload);
@@ -1061,7 +1053,7 @@ if (!renderer) {
   let orbitOn = false, userAz = 0, userEl = 0, velAz = 0, drag = null;
   const BASE_EL = camAt(END).el;
   addEventListener('pointerdown', e => {
-    if (!orbitOn || e.button !== 0 || e.target.closest('.card, .panel, a, button, .nav, #explore, footer')) return;
+    if (!orbitOn || e.button !== 0 || e.target.closest('.card, .panel, a, button, .nav, #explore')) return;
     if (e.pointerType === 'mouse') e.preventDefault();          // no text selection while dragging
     drag = { id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now(), mouse: e.pointerType === 'mouse' };
     velAz = 0;
@@ -1101,11 +1093,12 @@ if (!renderer) {
   let leave = null;
   const Q0 = new THREE.Quaternion();
   sceneReady = () => ready;
-  canResting = () => ready && !leave && !intro && mode === 'hero' && shownU <= .001;
+  canResting = () => ready && !leave && !intro && ((mode === 'hero' && shownU <= .001) || (mode === 'build' && shownU >= 1 && shownT >= END - .01));
   leaveScene = kind => {
     const whole = mode === 'hero' && shownU <= .001 && !intro;
     // The visualizer: a short glide to the middle while the can keeps its slow hero turn, then it explodes there.
-    if (kind === 'viz') { leave = { start: performance.now(), dur: 950, dir: 1, sweep: 0, arc: 0 }; return; }
+    // From the built can at the bottom the camera has further to come (orbit, specs framing), so take a little longer.
+    if (kind === 'viz') { leave = { start: performance.now(), dur: whole ? 950 : 1500, dir: 1, sweep: 0, arc: 0, viz: 1 }; return; }
     // A long sweeping orbit round the can, carrying on the way it was already turning.
     leave = { start: performance.now(), dur: whole ? 2100 : 2600, dir: lastDir || 1, sweep: whole ? 250 : 290, arc: 1 };
   };
@@ -1268,11 +1261,14 @@ if (!renderer) {
         const b = 170 - 20 * e;
         Object.assign(sun.shadow.camera, { left: -b, right: b, top: b, bottom: -b });
         sun.shadow.camera.updateProjectionMatrix();
+        // How fast the can is turning on screen, so the visualizer carries on at the same rate and direction.
+        if (Number.isFinite(leave.lastAz) && dt > 0) { const v = (az - leave.lastAz) / dt; leave.turn = leave.turn === undefined ? v : leave.turn + (v - leave.turn) * (1 - Math.exp(-dt * 10)); }
+        leave.lastAz = az;
         if (e >= 1 && mission) {
           if (mission.failed) goToMission(mission.url);
           else if (mission.ready && !leave.sent) {   // this is the frame the mission page starts from
             leave.sent = true;
-            mission.frame.contentWindow.postMessage({ runnysat: 'go', az, fog: [scene.fog.near, scene.fog.far] }, location.origin);
+            mission.frame.contentWindow.postMessage({ runnysat: 'go', az, turn: leave.turn, fog: [scene.fog.near, scene.fog.far] }, location.origin);
           }
         }
       }
