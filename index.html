@@ -700,10 +700,10 @@ function updateUI(y, st) {
    screen (put back together first, if it was apart). The mission page draws its opening's first frame (the can on
    the same floor, from the same angle), and on the frame it is ready it is swapped in, so the liftoff, parachute and
    descent simply carry on from here. The address then reads mission.html; going back returns to this page.
-   The 3D visualizer links do the same wherever the can is whole: at the top once it has landed, or at the bottom once
-   it is fully built. The can glides to the middle without the sweep, and the visualizer takes over on that frame and explodes it. */
+   The 3D visualizer links do the same from anywhere on the page: the can goes back together if it was apart (or sets
+   down if it was still landing) and glides to the middle without the sweep, and the visualizer takes over on that
+   frame and explodes it. */
 let sceneReady = () => false;        // set by the 3D scene
-let canResting = () => false;        // set by the 3D scene: the finished can is whole and on screen (resting at the top, or built at the bottom)
 let leaveScene = null;               // set by the 3D scene: brings the can to the middle, then hands it over
 let resetLeave = () => {};           // set by the 3D scene: back to normal after returning
 let handedOver = false;              // the mission is showing: stop drawing here
@@ -761,15 +761,15 @@ addEventListener('popstate', e => {
   } else if (!mission && e.state && e.state.mission) location.reload();   // forward again: open the mission page itself
 });
 document.querySelectorAll('a[data-leave]').forEach(a => {
-  const viz = a.dataset.leave === 'viz';           // the visualizer: only from the whole can (resting at the top, or fully built at the bottom)
-  const can = () => canHandOver() && (!viz || canResting());
+  const viz = a.dataset.leave === 'viz';           // the visualizer: the can goes back together on the way, like the mission
+  const can = canHandOver;
   const preload = () => { if (can()) loadMission(a.href); };   // start loading as soon as it looks likely
   a.addEventListener('pointerenter', preload);
   a.addEventListener('focus', preload);
   a.addEventListener('touchstart', preload, { passive: true });
   a.addEventListener('click', e => {
     if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-    if (!can()) return;                          // no 3D here (or, for the visualizer, not at the resting can): just follow the link
+    if (!can()) return;                          // no 3D here: just follow the link
     e.preventDefault();
     if (document.body.classList.contains('leaving')) return;
     document.body.classList.add('leaving');
@@ -1088,12 +1088,17 @@ if (!renderer) {
   let leave = null;
   const Q0 = new THREE.Quaternion();
   sceneReady = () => ready;
-  canResting = () => ready && !leave && !intro && ((mode === 'hero' && shownU <= .001) || (mode === 'build' && shownU >= 1 && shownT >= END - .01));
   leaveScene = kind => {
     const whole = mode === 'hero' && shownU <= .001 && !intro;
     // The visualizer: a short glide to the middle while the can keeps its slow hero turn, then it explodes there.
-    // From the built can at the bottom the camera has further to come (orbit, specs framing), so take a little longer.
-    if (kind === 'viz') { leave = { start: performance.now(), dur: whole ? 950 : 1500, dir: 1, sweep: 0, arc: 0, viz: 1 }; return; }
+    // From the built can at the bottom the camera has further to come (orbit, specs framing), so take a little longer;
+    // from anywhere else (still landing, or part way through coming apart or going back together) the can first
+    // finishes going back together on the way, so give that a little longer again.
+    if (kind === 'viz') {
+      const built = mode === 'build' && shownU >= 1 && shownT >= END - .01;
+      leave = { start: performance.now(), dur: whole ? 950 : built || intro ? 1500 : 1900, dir: 1, sweep: 0, arc: 0, viz: 1 };
+      return;
+    }
     // A long sweeping orbit round the can, carrying on the way it was already turning.
     leave = { start: performance.now(), dur: whole ? 2100 : 2600, dir: lastDir || 1, sweep: whole ? 250 : 290, arc: 1 };
   };
@@ -1150,7 +1155,9 @@ if (!renderer) {
     if (mode === 'hero' && shownU < 1 && !reduceMotion) heroClock += dt;
     if (intro) {
       intro.t = intro.t < 0 ? 0 : intro.t + dt;      // the first frame after loading is a long one: start the clock after it
-      if (mode === 'build' || intro.t >= CH.total) endIntro();   // scrolled well past, or finished
+      // Scrolled well past, or finished. Not while handing over: the hand-over sets the can down itself, and ending
+      // the landing part way through would make the can and camera jump.
+      if (!leave && (mode === 'build' || intro.t >= CH.total)) endIntro();
       dirty = true;
     }
 

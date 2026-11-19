@@ -37,6 +37,9 @@
   #load { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; font-size:15px; color:var(--muted); }
   /* ---------- exploded view (the default): the build player's caption and bar step aside ---------- */
   body.explode #cap, body.explode #bar, body.explode #brand { display:none; }
+  /* arriving in the build from the exploded view: the player's caption and bar fade in */
+  @keyframes fadeIn { from { opacity:0; } }
+  body.fadein #cap, body.fadein #bar, body.fadein #brand { animation:fadeIn .6s ease both; }
   body:not(.explode) #xui, body:not(.explode) #partCard { display:none; }
   body.explode #view { cursor:grab; }
   body.explode.over-part #view { cursor:pointer; }
@@ -451,6 +454,7 @@ scene.add(grid);
 /* ---------- the model (vertex data shared with the other pages) ---------- */
 const parts = [], pickables = [];
 let expG = 0;                        // exploded view: 0 (the finished can) → 1 (every part pulled apart)
+let hideK = 0;                       // going into the build: every part but the sensor base fades out (0 → 1)
 function loadModel() {
   return new Promise((resolve, reject) => {
     if (window.CANSAT_MODEL) return resolve(window.CANSAT_MODEL);
@@ -484,7 +488,7 @@ function buildMeshes(model) {
     const pivot = new THREE.Group();
     pivot.add(mesh);
     scene.add(pivot);
-    const P = { m: p, s: schedule(p.name), ex: explodeOf(p.name), key: pickKey(p.name), pivot, mesh, mat, edgeMat, isBody: p.name.startsWith('SHELL Body'), transparent: false };
+    const P = { m: p, s: schedule(p.name), ex: explodeOf(p.name), key: pickKey(p.name), pivot, mesh, mat, edgeMat, isBody: p.name.startsWith('SHELL Body'), isBase: p.name.startsWith('PRINT Sensor base'), transparent: false };
     mesh.userData.P = P;
     parts.push(P);
     pickables.push(mesh);
@@ -510,11 +514,13 @@ function poseParts(t) {
     if (s.rot) P.pivot.rotation.z = ROT[s.rot](t);
     let a = clamp(n / .3);
     if (P.isBody) a *= shellFade(t);
+    if (hideK > 0 && !P.isBase) a *= 1 - hideK;
     const tr = a < .999;
     if (tr !== P.transparent) {
       P.mat.transparent = tr; P.mat.depthWrite = !tr; P.mat.needsUpdate = true;
-      P.transparent = tr; P.mesh.castShadow = !tr || a > .5;
+      P.transparent = tr;
     }
+    P.mesh.castShadow = !tr || a > .5;   // (checked every time: a part fading out drops its shadow half way)
     P.mat.opacity = a;
     P.edgeMat.opacity = .28 * a * (P.isBody && shellFade(t) < .99 ? 0 : 1);
   }
@@ -570,7 +576,7 @@ controls.addEventListener('start', () => { follow = false; followBtn.classList.r
 const embedded = window.parent !== window && new URLSearchParams(location.search).has('handoff');
 const tellParent = msg => { try { parent.postMessage({ runnysat: msg }, location.origin); } catch (e) {} };
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
-let mode = REC || location.hash === '#build' ? 'build' : 'explode';   // 'explode' | 'toBuild' (going back together first) | 'build'
+let mode = REC || location.hash === '#build' ? 'build' : 'explode';   // 'explode' | 'toBuild' (gliding into the build) | 'build'
 let waiting = embedded && mode === 'explode', goPending = false;
 let az0 = 330, xClock = 0, userTook = false, fog0 = null, turn = 7;
 const X_DELAY = .35;                       // s before it comes apart; `turn` is the landing page's slow turn (deg/s)
@@ -585,7 +591,8 @@ if (embedded) {
   addEventListener('message', e => {
     if (e.origin !== location.origin || !e.data || e.data.runnysat !== 'go' || !waiting) return;
     az0 = e.data.az; if (Array.isArray(e.data.fog)) fog0 = e.data.fog;
-    if (Number.isFinite(e.data.turn) && Math.abs(e.data.turn) < 60) turn = e.data.turn;   // keep the landing page's turn going
+    // Keep the landing page's turn going; if it was still swinging fast, settle to the slow turn the same way round.
+    if (Number.isFinite(e.data.turn)) turn = Math.abs(e.data.turn) < 60 ? e.data.turn : 7 * Math.sign(e.data.turn);
     waiting = false; goPending = true; xClock = 0; dirty = true;
   });
 }
@@ -658,8 +665,8 @@ function xCamera() {
 function xStep(dt) {
   if (!waiting && !reduceMotion) xClock += dt;
   if (!waiting && reduceMotion) xClock = X_DELAY + 1;
-  if (!waiting && xClock > .25) document.body.classList.add('ui');
-  const to = mode === 'explode' && !waiting && xClock >= X_DELAY ? 1 : 0;
+  if (!waiting && xClock > .25 && mode === 'explode') document.body.classList.add('ui');
+  const to = mode === 'toBuild' ? expG : mode === 'explode' && !waiting && xClock >= X_DELAY ? 1 : 0;   // going into the build: the parts stay where they are
   if (expG !== to) {
     const st = reduceMotion ? 1 : dt / (to ? 2.6 : .8);
     expG = to > expG ? Math.min(to, expG + st) : Math.max(to, expG - st);
@@ -667,7 +674,12 @@ function xStep(dt) {
   }
   if (!userTook && !waiting) dirty = true;    // the slow turn
   if (focus) { focus.t += dt / .7; dirty = true; if (focus.t >= 1) focus = null; }
-  if (mode === 'toBuild' && expG === 0) enterBuild();
+  if (tb) {
+    tb.t += dt / TB_DUR;
+    hideK = easeInOut(clamp(tb.t / .55));
+    dirty = true;
+    if (tb.t >= 1) finishToBuild();
+  }
 }
 
 // Picking parts: hover highlights, a click selects, focuses the camera on it and opens its card.
@@ -754,18 +766,63 @@ if (matchMedia('(pointer: coarse)').matches) {
 }
 
 // Between the two views.
-function enterBuild() {
+// "Watch the build": everything but the sensor base fades out where it is, and the camera glides in onto the base,
+// arriving exactly where the build's own camera is at the moment the base has just been seated (T0). The build then
+// plays on from there, so the hand-over can't be seen.
+const T0 = 4.5, TB_DUR = 1.8;        // s into the build (the base is in, the PETG window not yet); s the glide takes
+let tb = null;                       // { t, pos, tg, fog, sun } while gliding into the build
+const sph = (pos, tg) => {           // camera offset from its target as distance, azimuth°, elevation°
+  const x = pos.x - tg.x, y = pos.y - tg.y, z = pos.z - tg.z, d = Math.hypot(x, y, z);
+  return { d, az: Math.atan2(y, x) * 180 / Math.PI, el: Math.asin(clamp(z / d, -1, 1)) * 180 / Math.PI };
+};
+function startToBuild() {
+  select(null); setHover(null);
+  focus = null; blend = null; down = null;
+  controls.enabled = false;
+  document.body.classList.remove('ui', 'over-part', 'grabbing');
+  tb = { t: 0, pos: camera.position.clone(), tg: controls.target.clone(), fog: [scene.fog.near, scene.fog.far],
+         sunT: sun.target.position.clone(), sunP: sun.position.clone(), b: sun.shadow.camera.right, far: sun.shadow.camera.far };
+  mode = 'toBuild';
+  if (reduceMotion) finishToBuild();
+  dirty = true;
+}
+const vS = new THREE.Vector3(), vD = new THREE.Vector3();
+function tbCamera() {
+  const f = easeInOut(clamp(tb.t)), c = camAt(T0);
+  vD.set(...c.tg);
+  const a = sph(tb.pos, tb.tg), b = sph(vS.set(...c.pos), vD);
+  const tg = vT.copy(tb.tg).lerp(vD, f);
+  const d = a.d * Math.pow(b.d / a.d, f), az = a.az + (((b.az - a.az) % 360 + 540) % 360 - 180) * f, el = a.el + (b.el - a.el) * f;
+  setCam(place([tg.x, tg.y, tg.z], d, az, el), [tg.x, tg.y, tg.z]);
+  scene.fog.near = tb.fog[0] + (700 - tb.fog[0]) * f;
+  scene.fog.far = tb.fog[1] + (1300 - tb.fog[1]) * f;
+  // The light, from wherever the exploded view had it to the build's own.
+  sun.target.position.copy(tb.sunT).lerp(vS.set(45, 0, 40), f);
+  sun.position.copy(tb.sunP).lerp(vS.set(160, -140, 320), f);
+  const bb = tb.b + (170 - tb.b) * f;
+  Object.assign(sun.shadow.camera, { left: -bb, right: bb, top: bb, bottom: -bb, far: tb.far + (800 - tb.far) * f });
+  sun.shadow.camera.updateProjectionMatrix();
+  renderer.shadowMap.needsUpdate = true;
+}
+function finishToBuild() {
+  tb = null; hideK = 0; expG = 0;
+  controls.enabled = true;
+  enterBuild(T0, true);
+  document.body.classList.add('fadein');
+}
+function enterBuild(t0 = 0, cut = false) {
   mode = 'build';
   select(null); setHover(null);
   document.body.classList.remove('explode', 'ui');
   aimSun(0, true);
   scene.fog.near = 700; scene.fog.far = 1300;
-  time = 0; playing = true; follow = true; followBtn.classList.add('on');
-  startBlend();
+  time = t0; playing = true; follow = true; followBtn.classList.add('on');
+  if (!cut) startBlend();
   dirty = true;
 }
 function enterExplode() {
   mode = 'explode';
+  document.body.classList.remove('fadein');
   playing = false; time = END;
   document.body.classList.add('explode', 'ui');
   // Carry on from where the build camera is looking, turning slowly from that heading.
@@ -774,7 +831,7 @@ function enterExplode() {
   startBlend();
   dirty = true;
 }
-document.getElementById('xbuild').onclick = () => { if (mode === 'explode') { select(null); mode = expG > 0 ? 'toBuild' : 'build'; if (mode === 'build') enterBuild(); } };
+document.getElementById('xbuild').onclick = () => { if (mode === 'explode') startToBuild(); };
 document.getElementById('toExplode').onclick = () => { if (mode === 'build') enterExplode(); };
 document.getElementById('xreset').onclick = () => { select(null); if (userTook) { userTook = false; focus = null; startBlend(); } };
 if (mode === 'explode') document.body.classList.add('explode');
@@ -784,7 +841,7 @@ else aimSun(0, true);
 // A frame is only drawn when something on screen changes: the build moving, the camera moving (the auto camera,
 // dragging, zooming, or the controls still easing to a stop), or the window changing size. A paused build left
 // alone costs nothing.
-let posedT = NaN, posedE = NaN, dirty = true;
+let posedT = NaN, posedE = NaN, posedH = NaN, dirty = true;
 controls.addEventListener('change', () => { dirty = true; });
 // Switching between the build and the exploded view blends the camera over from where it was, instead of cutting.
 let blend = null;                    // { pos, tg, t } while blending
@@ -802,8 +859,9 @@ function aim(t) {
   setCam(c.pos, c.tg);
 }
 function draw(t, force) {
-  if (t !== posedT || expG !== posedE) { poseParts(t); posedT = t; posedE = expG; renderer.shadowMap.needsUpdate = true; dirty = true; }
+  if (t !== posedT || expG !== posedE || hideK !== posedH) { poseParts(t); posedT = t; posedE = expG; posedH = hideK; renderer.shadowMap.needsUpdate = true; dirty = true; }
   if (mode === 'build') { caption(t); if (follow || REC) aim(t); }
+  else if (tb) tbCamera();
   else xCamera();
   controls.update();
   if (force || dirty) { renderer.render(scene, camera); dirty = false; return true; }
@@ -817,8 +875,8 @@ function frame(now) {
   const dt = Math.min(.1, (now - lastNow) / 1000);
   lastNow = now;
   if (blend) { blend.t += dt / 1.1; dirty = true; if (blend.t >= 1) blend = null; }
-  if (mode !== 'build') {
-    xStep(dt);
+  if (mode !== 'build') xStep(dt);
+  if (mode !== 'build') {            // (the glide into the build may have just ended: then this frame is the build's)
     const drew = draw(END);
     handoffTick(drew);
     if (hoverAt && !down && mode === 'explode') { const P = pick(hoverAt[0], hoverAt[1]); setHover(P ? P.key : null); hoverAt = null; }
